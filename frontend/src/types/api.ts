@@ -1,0 +1,11 @@
+export type User = { id: string; email: string; full_name: string; roles: string[]; must_change_password: boolean }
+export type AuthState = { access_token: string; token_type: string; user: User }
+export type Company = { id: string; name: string; customer_code: string | null; registration_number?: string | null; address?: string | null; main_email: string | null; main_phone?: string | null; status: string; notes?: string | null }
+export type Contact = { id: string; company_id: string; user_id: string | null; full_name: string; email: string | null; phone: string | null; job_title?: string | null; contact_type: string; is_primary?: boolean; status: string; user_account_status: string; user_role: string | null }
+export type CompanyUser = { id: string; contact_id: string | null; email: string; full_name: string; role: string | null; status: string; temporary_password?: string | null }
+export type InternalUser = { id: string; email: string; full_name: string; role: string; status: string; temporary_password?: string | null }
+export type VisitorAccess = { visitor_full_name: string; visitor_id_number: string; visitor_phone: string | null; visitor_email?: string | null; visitor_address?: string | null; visitor_company?: string | null; visit_date: string; expected_arrival_time: string; expected_departure_time: string; visit_status: string }
+export type AccessRequest = { id: string; request_number: string; title: string; request_type: string; status: string; visitor_access?: VisitorAccess | null; visitor_accesses?: VisitorAccess[] }
+export type SecurityVisitor = { visitor_access_id: string; request_number: string; visitor_full_name: string; visitor_id_number: string; visitor_phone: string | null; visitor_address: string | null; visit_status: string; expected_arrival_time: string; expected_departure_time: string }
+export type AuditLog = { id: string; action: string; entity_type: string; entity_id: string | null; summary: string; metadata_json: Record<string, unknown> | null; actor_email: string | null; actor_full_name: string | null; created_at: string }
+export type ListResponse<T> = { items: T[]; total: number; page: number; page_size: number }

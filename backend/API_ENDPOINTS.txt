@@ -1,0 +1,127 @@
+Data Centre Customer Onboarding - Backend API Endpoints
+
+Base URL:
+http://127.0.0.1:8000
+
+Health
+GET /health
+Purpose: Check whether the backend is running.
+
+Authentication
+POST /api/v1/auth/login
+Purpose: Login using email/password and receive an access token.
+
+POST /api/v1/auth/token
+Purpose: OAuth2-compatible login token endpoint.
+
+GET /api/v1/auth/me
+Purpose: Get the currently logged-in user details.
+
+POST /api/v1/auth/change-password
+Purpose: Change the current user's password.
+
+Companies
+GET /api/v1/companies
+Purpose: List companies with search, status filter, and pagination.
+
+POST /api/v1/companies
+Purpose: Create a new company. Admin/Ops only.
+
+GET /api/v1/companies/{company_id}
+Purpose: Get one company by ID.
+
+PATCH /api/v1/companies/{company_id}
+Purpose: Update company details. Admin/Ops only.
+
+GET /api/v1/companies/{company_id}/users
+Purpose: List users assigned to a company. Admin/Ops only.
+
+POST /api/v1/companies/{company_id}/users
+Purpose: Assign or create a company user. Admin/Ops only.
+
+Contacts
+GET /api/v1/companies/{company_id}/contacts
+Purpose: List contacts for a company.
+
+POST /api/v1/companies/{company_id}/contacts
+Purpose: Create a contact for a company. Admin/Ops only.
+
+PATCH /api/v1/contacts/{contact_id}
+Purpose: Update a contact. Admin/Ops only.
+
+Visitor Access Requests
+POST /api/v1/visitor-access-requests
+Purpose: Create a visitor access request.
+
+Requests
+GET /api/v1/requests
+Purpose: List requests with filters and pagination.
+
+GET /api/v1/requests/{request_id}
+Purpose: Get one request by ID.
+
+POST /api/v1/requests/{request_id}/approve
+Purpose: Approve a request. Admin/Ops only.
+
+POST /api/v1/requests/{request_id}/reject
+Purpose: Reject a request. Admin/Ops only.
+
+POST /api/v1/requests/{request_id}/cancel
+Purpose: Cancel a request.
+
+Security Portal
+GET /api/v1/security/visitors
+Purpose: List visitors for a date, status, or search query. Security/Admin/Ops only.
+
+GET /api/v1/security/visitors/{visitor_access_id}
+Purpose: Get visitor access details. Security/Admin/Ops only.
+
+POST /api/v1/security/visitors/{visitor_access_id}/check-in
+Purpose: Check in a visitor. Security only.
+
+POST /api/v1/security/visitors/{visitor_access_id}/check-out
+Purpose: Check out a visitor. Security only.
+
+POST /api/v1/security/visitors/{visitor_access_id}/deny-entry
+Purpose: Deny visitor entry. Security only.
+
+Users
+GET /api/v1/users/internal
+Purpose: List internal staff users. Admin only.
+
+POST /api/v1/users/internal
+Purpose: Create an internal staff user. Admin only.
+
+PATCH /api/v1/users/internal/{user_id}
+Purpose: Update an internal staff user. Admin only.
+
+Audit Logs
+GET /api/v1/audit-logs
+Purpose: View audit logs with filters and pagination. Admin/Ops only.
+
+Dashboard
+GET /api/v1/dashboard/admin-summary
+Purpose: Admin/Ops dashboard summary.
+
+GET /api/v1/dashboard/security-summary
+Purpose: Security/Admin/Ops dashboard summary.
+
+GET /api/v1/dashboard/customer-summary
+Purpose: Customer dashboard summary.
+
+Does data pass through the API before the database?
+Yes. The system data goes through the API first. It does not go directly from the frontend/system to the database.
+
+Flow:
+Frontend/System
+-> FastAPI endpoint
+-> Authentication and role checks
+-> Service function
+-> SQLAlchemy database session
+-> Database
+
+Database connection file:
+backend/app/db/session.py
+
+API dependency that provides database sessions:
+backend/app/core/dependencies.py
