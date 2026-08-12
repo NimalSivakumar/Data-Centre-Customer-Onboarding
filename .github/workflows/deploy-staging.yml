@@ -1,0 +1,42 @@
+name: Deploy Staging
+
+on:
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    name: Deploy to test-ussd
+    runs-on: [self-hosted, linux, staging, dc-onboarding]
+    environment: staging
+
+    steps:
+      - name: Checkout exact commit
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          clean: true
+
+      - name: Harden self-hosted workspace
+        run: |
+          git fetch --prune --tags
+          git checkout --force "$GITHUB_SHA"
+          git clean -ffdx
+
+      - name: Build release bundle
+        env:
+          VITE_BASE_PATH: /dc-onboarding/
+          VITE_API_BASE_URL: ${{ vars.STAGING_API_BASE_URL || format('{0}/dc-onboarding-api/v1', vars.STAGING_BASE_URL) }}
+        run: bash scripts/linux/build_release.sh
+
+      - name: Deploy release
+        env:
+          STAGING_PATH: ${{ vars.STAGING_PATH }}
+          BACKEND_SERVICE_NAME: ${{ vars.BACKEND_SERVICE_NAME || 'dc-onboarding' }}
+        run: bash scripts/linux/deploy_release.sh
+
+      - name: Verify release
+        env:
+          STAGING_PATH: ${{ vars.STAGING_PATH }}
+          STAGING_BASE_URL: ${{ vars.STAGING_BASE_URL }}
+          BACKEND_SERVICE_NAME: ${{ vars.BACKEND_SERVICE_NAME || 'dc-onboarding' }}
+        run: bash scripts/linux/verify_release.sh

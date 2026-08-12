@@ -28,6 +28,11 @@ def health_check() -> dict[str, str]:
     return {"status": "ok", "app": settings.app_name}
 
 
+@app.get("/health/ready")
+def readiness_check() -> dict[str, str]:
+    return {"status": "ready", "app": settings.app_name}
+
+
 app.include_router(auth_router, prefix="/api/v1/auth", tags=["auth"])
 app.include_router(companies_router, prefix="/api/v1")
 app.include_router(contacts_router, prefix="/api/v1")

@@ -6,9 +6,11 @@ import 'bootstrap/dist/js/bootstrap.bundle.min.js'
 import './index.css'
 import App from './App.tsx'
 
+const routerBaseName = import.meta.env.BASE_URL === '/' ? undefined : import.meta.env.BASE_URL.replace(/\/$/, '')
+
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <BrowserRouter basename="/dc-onboarding">
+    <BrowserRouter basename={routerBaseName}>
       <App />
     </BrowserRouter>
   </StrictMode>,
