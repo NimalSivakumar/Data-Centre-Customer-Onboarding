@@ -13,8 +13,9 @@ if [ -z "$BUNDLE" ]; then
 fi
 
 RELEASES_DIR="$STAGING_PATH/releases"
-CURRENT_DIR="$STAGING_PATH/current"
 ENV_FILE="$STAGING_PATH/backend/.env"
+BACKEND_DIR="$STAGING_PATH/backend"
+FRONTEND_DIR="${FRONTEND_DEPLOY_PATH:-$STAGING_PATH/frontend/dist}"
 RELEASE_ID="$(date +%Y%m%d%H%M%S)-${GITHUB_SHA:-local}"
 TARGET_RELEASE="$RELEASES_DIR/$RELEASE_ID"
 
@@ -27,9 +28,13 @@ if [ ! -f "$ENV_FILE" ]; then
   exit 1
 fi
 
-ln -sfn "$ENV_FILE" "$TARGET_RELEASE/backend/.env"
+mkdir -p "$BACKEND_DIR" "$FRONTEND_DIR"
+rsync -a --delete "$TARGET_RELEASE/backend/" "$BACKEND_DIR/" \
+  --exclude ".env" \
+  --exclude ".venv"
+rsync -a --delete "$TARGET_RELEASE/frontend/" "$FRONTEND_DIR/"
 
-pushd "$TARGET_RELEASE/backend" >/dev/null
+pushd "$BACKEND_DIR" >/dev/null
 python3 -m venv .venv
 . .venv/bin/activate
 python -m pip install --upgrade pip
@@ -44,11 +49,11 @@ fi
 
 TARGET_REVISION="$(alembic heads | awk '{print $1}')"
 printf "%s\n" "$TARGET_REVISION" > "$TARGET_RELEASE/ALEMBIC_TARGET"
+printf "%s\n" "$TARGET_REVISION" > "$STAGING_PATH/ALEMBIC_TARGET"
+printf "%s\n" "${GITHUB_SHA:-local}" > "$STAGING_PATH/REVISION"
 
 alembic upgrade head
 popd >/dev/null
-
-ln -sfn "$TARGET_RELEASE" "$CURRENT_DIR"
 
 sudo systemctl restart "$SERVICE_NAME"
 sudo systemctl reload nginx
