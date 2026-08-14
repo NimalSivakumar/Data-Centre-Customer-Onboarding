@@ -11,10 +11,28 @@ FRONTEND_URL="$BASE_URL/dc-onboarding/"
 HEALTH_URL="$BASE_URL/dc-onboarding-health"
 READY_URL="http://127.0.0.1:8000/health/ready"
 
-curl -kfsS "$FRONTEND_URL" >/dev/null
-curl -kfsS "$HEALTH_URL" >/dev/null
+check_url() {
+  local name="$1"
+  local url="$2"
 
-curl -kfsS "$READY_URL" >/dev/null
+  for attempt in 1 2 3 4 5 6 7 8 9 10; do
+    echo "Checking $name: $url (attempt $attempt/10)"
+    if curl -kfsS "$url" >/dev/null; then
+      echo "OK: $name"
+      return 0
+    fi
+
+    sleep 3
+  done
+
+  echo "Failed: $name did not return success after 10 attempts"
+  curl -ki "$url" || true
+  return 1
+}
+
+check_url "frontend" "$FRONTEND_URL"
+check_url "health" "$HEALTH_URL"
+check_url "readiness" "$READY_URL"
 
 systemctl is-active --quiet "$SERVICE_NAME"
 
