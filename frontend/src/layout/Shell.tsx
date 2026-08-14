@@ -129,7 +129,7 @@ export function Shell({ auth, onLogout }: { auth: AuthState; onLogout: () => voi
         <header className="workspace-header">
           <div>
             <span className="workspace-kicker">Operations Portal</span>
-            <strong>Data Centre Customer Onboarding</strong>
+            <strong>Data Centre Onboarding Portal</strong>
           </div>
         </header>
         <main className="content">
