@@ -31,16 +31,10 @@ const dropdownNavItems: Record<string, DropdownNavItem> = {
   },
   '/contacts': {
     path: '/contacts',
-    label: 'Contacts',
+    label: 'Contacts & Users',
     links: [
       { to: '/contacts?action=create', label: 'Create contact' },
       { to: '/contacts?action=list', label: 'List contacts' },
-    ],
-  },
-  '/customer-users': {
-    path: '/customer-users',
-    label: 'Users',
-    links: [
       { to: '/customer-users?action=new', label: 'Create new user' },
       { to: '/customer-users?action=existing', label: 'Existing contact user' },
       { to: '/customer-users?action=list', label: 'List users' },
@@ -52,6 +46,14 @@ const dropdownNavItems: Record<string, DropdownNavItem> = {
     links: [
       { to: '/internal-users?action=create', label: 'Create internal user' },
       { to: '/internal-users?action=list', label: 'List internal users' },
+    ],
+  },
+  '/requests': {
+    path: '/requests',
+    label: 'Requests',
+    links: [
+      { to: '/visitor-request', label: 'Submit request' },
+      { to: '/requests', label: 'View requests' },
     ],
   },
 }

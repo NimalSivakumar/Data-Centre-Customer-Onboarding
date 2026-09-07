@@ -11,6 +11,7 @@ class SecurityVisitorResponse(BaseModel):
     request_id: UUID
     request_number: str
     request_status: RequestStatus
+    request_description: str | None
     company_id: UUID
     visit_date: date
     expected_arrival_time: time

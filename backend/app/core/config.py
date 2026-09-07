@@ -11,6 +11,7 @@ class Settings(BaseSettings):
     access_token_expire_minutes: int = 480
     cors_origins: str = "http://localhost:5173,http://localhost:3000"
     auth_mode: str = "local"
+    site_timezone: str = "Indian/Mahe"
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 
