@@ -92,7 +92,7 @@ function getDashboardQuickActions(isCustomerDashboard: boolean) {
     },
     {
       kicker: 'Directory',
-      title: 'Manage contacts',
+      title: 'Manage contacts and users',
       description: 'Maintain customer contacts and customer login access from one place.',
       to: '/contacts?action=list',
       tone: 'action-secondary',

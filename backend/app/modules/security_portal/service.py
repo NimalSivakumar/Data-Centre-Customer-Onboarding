@@ -1,15 +1,39 @@
 from datetime import date, datetime, timezone
 from uuid import UUID
+from zoneinfo import ZoneInfo
 
 from sqlalchemy import Select, or_, select
 from sqlalchemy.orm import Session, selectinload
 
+from app.core.config import settings
 from app.modules.audit.service import record_audit_log
 from app.modules.requests.models import Request
 from app.modules.security_portal.schemas import CheckInRequest, SecurityActionRequest, SecurityVisitorResponse
 from app.modules.users.models import User
 from app.modules.visitor_access.models import VisitorAccessRequest
 from app.shared.enums import RequestStatus, VisitStatus
+
+
+def get_site_now() -> datetime:
+    return datetime.now(ZoneInfo(settings.site_timezone))
+
+
+def validate_check_in_window(visitor: VisitorAccessRequest) -> None:
+    now = get_site_now()
+    visit_start = datetime.combine(visitor.visit_date, visitor.expected_arrival_time, tzinfo=now.tzinfo)
+    visit_end = datetime.combine(visitor.visit_date, visitor.expected_departure_time, tzinfo=now.tzinfo)
+
+    if now.date() != visitor.visit_date:
+        raise ValueError("Visitor can only be checked in on the scheduled visit date")
+    if now < visit_start:
+        raise ValueError("Visitor cannot be checked in before the expected arrival time")
+    if now > visit_end:
+        raise ValueError("Visitor cannot be checked in after the expected departure time")
+
+
+def validate_visit_date(visitor: VisitorAccessRequest) -> None:
+    if get_site_now().date() != visitor.visit_date:
+        raise ValueError("Visitor action is only allowed on the scheduled visit date")
 
 
 def to_security_visitor_response(visitor: VisitorAccessRequest) -> SecurityVisitorResponse:
@@ -19,6 +43,7 @@ def to_security_visitor_response(visitor: VisitorAccessRequest) -> SecurityVisit
         request_id=request.id,
         request_number=request.request_number,
         request_status=RequestStatus(request.status),
+        request_description=request.description,
         company_id=request.company_id,
         visit_date=visitor.visit_date,
         expected_arrival_time=visitor.expected_arrival_time,
@@ -95,6 +120,7 @@ def check_in_visitor(
         raise ValueError("Visitor can only be checked in from pending arrival status")
     if not payload.identity_verified:
         raise ValueError("Visitor identity must be verified before check-in")
+    validate_check_in_window(visitor)
 
     visitor.visit_status = VisitStatus.CHECKED_IN.value
     visitor.checked_in_at = datetime.now(timezone.utc)
@@ -122,6 +148,8 @@ def check_out_visitor(
 ) -> VisitorAccessRequest:
     if visitor.visit_status != VisitStatus.CHECKED_IN.value:
         raise ValueError("Visitor can only be checked out after check-in")
+    if get_site_now().date() < visitor.visit_date:
+        raise ValueError("Visitor cannot be checked out before the scheduled visit date")
 
     visitor.visit_status = VisitStatus.CHECKED_OUT.value
     visitor.checked_out_at = datetime.now(timezone.utc)
@@ -149,6 +177,7 @@ def deny_visitor_entry(
 ) -> VisitorAccessRequest:
     if visitor.visit_status != VisitStatus.PENDING_ARRIVAL.value:
         raise ValueError("Only pending visitors can be denied entry")
+    validate_visit_date(visitor)
 
     visitor.visit_status = VisitStatus.DENIED_ENTRY.value
     visitor.security_notes = payload.security_notes
