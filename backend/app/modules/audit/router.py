@@ -63,3 +63,4 @@ def get_audit_logs(
         "page": page,
         "page_size": page_size,
     }
+
