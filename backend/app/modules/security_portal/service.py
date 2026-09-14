@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session, selectinload
 
 from app.core.config import settings
 from app.modules.audit.service import record_audit_log
+from app.modules.companies.models import Company
 from app.modules.requests.models import Request
 from app.modules.security_portal.schemas import CheckInRequest, SecurityActionRequest, SecurityVisitorResponse
 from app.modules.users.models import User
@@ -45,6 +46,7 @@ def to_security_visitor_response(visitor: VisitorAccessRequest) -> SecurityVisit
         request_status=RequestStatus(request.status),
         request_description=request.description,
         company_id=request.company_id,
+        customer_company_name=request.company.name if request.company else None,
         visit_date=visitor.visit_date,
         expected_arrival_time=visitor.expected_arrival_time,
         expected_departure_time=visitor.expected_departure_time,
@@ -69,7 +71,7 @@ def to_security_visitor_response(visitor: VisitorAccessRequest) -> SecurityVisit
 def get_security_visitor(db: Session, visitor_access_id: UUID) -> VisitorAccessRequest | None:
     return db.scalar(
         select(VisitorAccessRequest)
-        .options(selectinload(VisitorAccessRequest.request))
+        .options(selectinload(VisitorAccessRequest.request).selectinload(Request.company))
         .where(VisitorAccessRequest.id == visitor_access_id)
     )
 
@@ -83,7 +85,8 @@ def list_security_visitors(
     stmt: Select[tuple[VisitorAccessRequest]] = (
         select(VisitorAccessRequest)
         .join(Request, Request.id == VisitorAccessRequest.request_id)
-        .options(selectinload(VisitorAccessRequest.request))
+        .join(Company, Company.id == Request.company_id)
+        .options(selectinload(VisitorAccessRequest.request).selectinload(Request.company))
         .where(Request.status == RequestStatus.APPROVED.value)
         .where(VisitorAccessRequest.visit_date == visit_date)
     )
@@ -98,6 +101,7 @@ def list_security_visitors(
                 VisitorAccessRequest.visitor_full_name.ilike(pattern),
                 VisitorAccessRequest.visitor_id_number.ilike(pattern),
                 VisitorAccessRequest.visitor_company.ilike(pattern),
+                Company.name.ilike(pattern),
             )
         )
 
