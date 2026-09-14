@@ -13,6 +13,7 @@ class SecurityVisitorResponse(BaseModel):
     request_status: RequestStatus
     request_description: str | None
     company_id: UUID
+    customer_company_name: str | None
     visit_date: date
     expected_arrival_time: time
     expected_departure_time: time

@@ -32,6 +32,7 @@ class Request(Base):
         back_populates="request",
         cascade="all, delete-orphan",
     )
+    company: Mapped["Company"] = relationship()
 
     @property
     def visitor_access(self) -> "VisitorAccessRequest | None":
