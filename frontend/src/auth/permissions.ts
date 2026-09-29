@@ -6,6 +6,5 @@ export function hasAnyRole(user: User, roles: string[]) {
 
 export function defaultPathForUser(user: User) {
   if (hasAnyRole(user, ['SECURITY'])) return '/security'
-  if (hasAnyRole(user, ['CUSTOMER_ADMIN', 'CUSTOMER_USER'])) return '/visitor-request'
   return '/dashboard'
 }

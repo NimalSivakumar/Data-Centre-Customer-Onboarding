@@ -21,12 +21,6 @@ Run the initial migration:
 alembic upgrade head
 ```
 
-Seed local development users:
-
-```powershell
-python -m app.scripts.seed_dev_data
-```
-
 ## Run
 
 ```powershell
@@ -36,5 +30,4 @@ uvicorn app.main:app --reload
 ## Useful Endpoints
 
 - `GET /health`
-- `POST /api/v1/auth/login`
 - `GET /api/v1/auth/me`

@@ -87,25 +87,9 @@ The backend container connects to PostgreSQL using Docker's internal service nam
 postgres:5432
 ```
 
-## Seed Local Users
+## Authentication
 
-After the containers are running, seed development roles and users:
-
-```bash
-docker compose exec backend python -m app.scripts.seed_dev_data
-```
-
-Default seeded users use password:
-
-```text
-password
-```
-
-Example admin:
-
-```text
-admin@example.com
-```
+The application uses Microsoft Entra ID only. Internal users, MFA, account lifecycle, and app-role assignment are managed in Entra, not by local seed data.
 
 ## Stop The App
 

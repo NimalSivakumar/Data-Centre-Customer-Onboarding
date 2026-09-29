@@ -4,7 +4,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
-from app.core.dependencies import get_db, require_roles
+from app.core.dependencies import InternalPrincipal, get_db, require_roles
 from app.modules.security_portal.schemas import CheckInRequest, SecurityActionRequest, SecurityVisitorResponse
 from app.modules.security_portal.service import (
     check_in_visitor,
@@ -14,7 +14,6 @@ from app.modules.security_portal.service import (
     list_security_visitors,
     to_security_visitor_response,
 )
-from app.modules.users.models import User
 from app.shared.enums import UserRole, VisitStatus
 from app.shared.exceptions import not_found
 
@@ -27,7 +26,7 @@ def get_visitors(
     status_filter: VisitStatus | None = Query(default=None, alias="status"),
     q: str | None = None,
     db: Session = Depends(get_db),
-    _: User = Depends(require_roles(UserRole.SECURITY.value, UserRole.ADMIN.value, UserRole.OPS.value)),
+    _: InternalPrincipal = Depends(require_roles(UserRole.SECURITY.value, UserRole.ADMIN.value, UserRole.OPS.value)),
 ) -> list[SecurityVisitorResponse]:
     visitors = list_security_visitors(
         db,
@@ -42,7 +41,7 @@ def get_visitors(
 def get_visitor_detail(
     visitor_access_id: UUID,
     db: Session = Depends(get_db),
-    _: User = Depends(require_roles(UserRole.SECURITY.value, UserRole.ADMIN.value, UserRole.OPS.value)),
+    _: InternalPrincipal = Depends(require_roles(UserRole.SECURITY.value, UserRole.ADMIN.value, UserRole.OPS.value)),
 ) -> SecurityVisitorResponse:
     visitor = get_security_visitor(db, visitor_access_id)
     if not visitor:
@@ -55,7 +54,7 @@ def post_check_in(
     visitor_access_id: UUID,
     payload: CheckInRequest,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles(UserRole.SECURITY.value)),
+    current_user: InternalPrincipal = Depends(require_roles(UserRole.SECURITY.value)),
 ) -> SecurityVisitorResponse:
     visitor = get_security_visitor(db, visitor_access_id)
     if not visitor:
@@ -71,7 +70,7 @@ def post_check_out(
     visitor_access_id: UUID,
     payload: SecurityActionRequest,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles(UserRole.SECURITY.value)),
+    current_user: InternalPrincipal = Depends(require_roles(UserRole.SECURITY.value)),
 ) -> SecurityVisitorResponse:
     visitor = get_security_visitor(db, visitor_access_id)
     if not visitor:
@@ -87,7 +86,7 @@ def post_deny_entry(
     visitor_access_id: UUID,
     payload: SecurityActionRequest,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles(UserRole.SECURITY.value)),
+    current_user: InternalPrincipal = Depends(require_roles(UserRole.SECURITY.value)),
 ) -> SecurityVisitorResponse:
     visitor = get_security_visitor(db, visitor_access_id)
     if not visitor:

@@ -4,12 +4,12 @@ from uuid import UUID
 from sqlalchemy import Select, func, or_, select
 from sqlalchemy.orm import Session, selectinload
 
+from app.core.dependencies import InternalPrincipal
 from app.modules.audit.service import record_audit_log
-from app.modules.companies.service import get_company, user_has_company_access
+from app.modules.companies.service import get_company
 from app.modules.contacts.models import Contact
 from app.modules.requests.models import Request
 from app.modules.requests.schemas import ReviewRequest
-from app.modules.users.models import User
 from app.modules.visitor_access.models import VisitorAccessRequest
 from app.modules.visitor_access.schemas import VisitorAccessCreate
 from app.shared.enums import RequestStatus, RequestType, VisitStatus
@@ -36,7 +36,6 @@ def list_requests(
     status: str | None = None,
     request_type: str | None = None,
     company_id: UUID | None = None,
-    requested_by_id: UUID | None = None,
     page: int = 1,
     page_size: int = 20,
 ) -> tuple[list[Request], int]:
@@ -61,9 +60,6 @@ def list_requests(
         filters.append(Request.request_type == request_type)
     if company_id:
         filters.append(Request.company_id == company_id)
-    if requested_by_id:
-        filters.append(Request.requested_by_id == requested_by_id)
-
     for condition in filters:
         stmt = stmt.where(condition)
         count_stmt = count_stmt.where(condition)
@@ -78,36 +74,32 @@ def list_requests(
 def create_visitor_access_request(
     db: Session,
     payload: VisitorAccessCreate,
-    actor: User,
+    actor: InternalPrincipal,
 ) -> Request:
     company = get_company(db, payload.company_id)
     if not company:
         raise ValueError("Company not found")
     roles = {role.name for role in actor.roles}
-    if not roles.intersection({"ADMIN", "OPS"}) and not user_has_company_access(db, actor.id, payload.company_id):
-        raise PermissionError("User is not assigned to this company")
-    if roles.intersection({"CUSTOMER_ADMIN", "CUSTOMER_USER"}):
-        host_contact_name = actor.full_name
-    else:
-        host_contact_name = payload.host_contact_name.strip() if payload.host_contact_name else ""
-        if not host_contact_name:
-            raise ValueError("Host/contact name is required")
-        host_contact_exists = db.scalar(
-            select(func.count())
-            .select_from(Contact)
-            .where(Contact.company_id == payload.company_id)
-            .where(Contact.status == "ACTIVE")
-            .where(Contact.full_name == host_contact_name)
-        )
-        if not host_contact_exists:
-            raise ValueError("Host/contact name must be an active contact for the selected company")
+    if not roles.intersection({"ADMIN", "OPS"}):
+        raise PermissionError("Only ADMIN and OPS can create visitor requests")
+    host_contact_name = payload.host_contact_name.strip() if payload.host_contact_name else ""
+    if not host_contact_name:
+        raise ValueError("Host/contact name is required")
+    host_contact_exists = db.scalar(
+        select(func.count())
+        .select_from(Contact)
+        .where(Contact.company_id == payload.company_id)
+        .where(Contact.status == "ACTIVE")
+        .where(Contact.full_name == host_contact_name)
+    )
+    if not host_contact_exists:
+        raise ValueError("Host/contact name must be an active contact for the selected company")
 
     first_visitor = payload.visitors[0]
     visitor_count = len(payload.visitors)
     request = Request(
         request_number=generate_request_number(db),
         company_id=payload.company_id,
-        requested_by_id=actor.id,
         request_type=RequestType.VISITOR_ACCESS.value,
         title=f"Visitor access for {first_visitor.visitor_full_name}" if visitor_count == 1 else f"Visitor access for {visitor_count} visitors",
         description=payload.visit_reason,
@@ -150,11 +142,10 @@ def create_visitor_access_request(
     return get_request(db, request.id) or request
 
 
-def approve_request(db: Session, request: Request, payload: ReviewRequest, actor: User) -> Request:
+def approve_request(db: Session, request: Request, payload: ReviewRequest, actor: InternalPrincipal) -> Request:
     if request.status != RequestStatus.SUBMITTED.value:
         raise ValueError("Only submitted requests can be approved")
     request.status = RequestStatus.APPROVED.value
-    request.reviewed_by_id = actor.id
     request.reviewed_at = datetime.now(timezone.utc)
     request.review_notes = payload.review_notes
     record_audit_log(
@@ -170,11 +161,10 @@ def approve_request(db: Session, request: Request, payload: ReviewRequest, actor
     return get_request(db, request.id) or request
 
 
-def reject_request(db: Session, request: Request, payload: ReviewRequest, actor: User) -> Request:
+def reject_request(db: Session, request: Request, payload: ReviewRequest, actor: InternalPrincipal) -> Request:
     if request.status != RequestStatus.SUBMITTED.value:
         raise ValueError("Only submitted requests can be rejected")
     request.status = RequestStatus.REJECTED.value
-    request.reviewed_by_id = actor.id
     request.reviewed_at = datetime.now(timezone.utc)
     request.review_notes = payload.review_notes
     record_audit_log(
@@ -190,7 +180,7 @@ def reject_request(db: Session, request: Request, payload: ReviewRequest, actor:
     return get_request(db, request.id) or request
 
 
-def cancel_request(db: Session, request: Request, actor: User) -> Request:
+def cancel_request(db: Session, request: Request, actor: InternalPrincipal) -> Request:
     if request.status not in {RequestStatus.SUBMITTED.value, RequestStatus.APPROVED.value}:
         raise ValueError("Only submitted or approved requests can be cancelled")
     request.status = RequestStatus.CANCELLED.value

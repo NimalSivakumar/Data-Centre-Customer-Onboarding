@@ -15,8 +15,6 @@ export function collapseAuditLogs(logs: AuditLog[]) {
 }
 
 function shouldShowAuditLog(log: AuditLog) {
-  if (log.action === 'CUSTOMER_USER_LINKED' || log.action === 'CONTACT_USER_LINKED') return false
-  if (log.action === 'CONTACT_CREATED' && log.summary.startsWith('Contact created with customer login:')) return false
   if (log.action === 'CONTACT_CREATED' && log.metadata_json?.source === 'company_create') return false
   return true
 }
@@ -80,14 +78,6 @@ function getChangedEntries(before: Record<string, unknown>, after: Record<string
 }
 
 function getAuditEntityLabel(log: AuditLog) {
-  const metadata = log.metadata_json
-  if (log.entity_type === 'contact' && isRecord(metadata?.changes)) {
-    const keys = Object.keys(metadata.changes)
-    const hasUserChange = keys.some((key) => key === 'user_role' || key === 'user_status')
-    const hasContactChange = keys.some((key) => key !== 'user_role' && key !== 'user_status')
-    if (hasUserChange && hasContactChange) return 'contact/user'
-    if (hasUserChange) return 'user'
-  }
   return formatLabel(log.entity_type)
 }
 

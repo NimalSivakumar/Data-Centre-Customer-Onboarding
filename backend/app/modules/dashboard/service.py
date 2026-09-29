@@ -1,16 +1,14 @@
 from datetime import date
 
-from sqlalchemy import and_, func, select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.modules.companies.models import Company
 from app.modules.dashboard.schemas import (
     AdminSummaryResponse,
-    CustomerSummaryResponse,
     SecuritySummaryResponse,
 )
 from app.modules.requests.models import Request
-from app.modules.users.models import User
 from app.modules.visitor_access.models import VisitorAccessRequest
 from app.shared.enums import CompanyStatus, RequestStatus, VisitStatus
 
@@ -72,30 +70,4 @@ def get_security_summary(db: Session, today: date) -> SecuritySummaryResponse:
         currently_checked_in=currently_checked_in,
         upcoming_visits=upcoming_visits,
         recently_checked_out=recently_checked_out,
-    )
-
-
-def get_customer_summary(db: Session, current_user: User, today: date) -> CustomerSummaryResponse:
-    my_submitted_requests = db.scalar(
-        select(func.count())
-        .select_from(Request)
-        .where(and_(Request.requested_by_id == current_user.id, Request.status == RequestStatus.SUBMITTED.value))
-    ) or 0
-    approved_upcoming_visits = db.scalar(
-        select(func.count())
-        .select_from(Request)
-        .join(VisitorAccessRequest, VisitorAccessRequest.request_id == Request.id)
-        .where(Request.requested_by_id == current_user.id)
-        .where(Request.status == RequestStatus.APPROVED.value)
-        .where(VisitorAccessRequest.visit_date >= today)
-    ) or 0
-    rejected_requests = db.scalar(
-        select(func.count())
-        .select_from(Request)
-        .where(and_(Request.requested_by_id == current_user.id, Request.status == RequestStatus.REJECTED.value))
-    ) or 0
-    return CustomerSummaryResponse(
-        my_submitted_requests=my_submitted_requests,
-        approved_upcoming_visits=approved_upcoming_visits,
-        rejected_requests=rejected_requests,
     )

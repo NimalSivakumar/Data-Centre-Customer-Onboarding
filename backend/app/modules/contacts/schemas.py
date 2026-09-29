@@ -3,7 +3,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, EmailStr, Field
 
-from app.shared.enums import ContactStatus, ContactType, UserRole
+from app.shared.enums import ContactStatus, ContactType
 
 
 class ContactBase(BaseModel):
@@ -29,16 +29,11 @@ class ContactUpdate(BaseModel):
     contact_type: ContactType | None = None
     is_primary: bool | None = None
     status: ContactStatus | None = None
-    user_role: UserRole | None = None
-    user_status: str | None = None
 
 
 class ContactResponse(ContactBase):
     id: UUID
     company_id: UUID
-    user_id: UUID | None = None
-    user_account_status: str = "NO_USER"
-    user_role: str | None = None
     created_at: datetime
     updated_at: datetime
 
