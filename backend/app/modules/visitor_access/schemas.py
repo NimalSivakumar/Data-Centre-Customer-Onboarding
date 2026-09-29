@@ -54,9 +54,7 @@ class VisitorAccessResponse(BaseModel):
     special_instructions: str | None
     visit_status: VisitStatus
     checked_in_at: datetime | None
-    checked_in_by_id: UUID | None
     checked_out_at: datetime | None
-    checked_out_by_id: UUID | None
     security_notes: str | None
     created_at: datetime
     updated_at: datetime

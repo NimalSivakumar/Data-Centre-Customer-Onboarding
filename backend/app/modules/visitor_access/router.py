@@ -1,10 +1,10 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
-from app.core.dependencies import get_current_user, get_db
+from app.core.dependencies import InternalPrincipal, get_db, require_roles
 from app.modules.requests.schemas import RequestResponse
 from app.modules.requests.service import create_visitor_access_request
-from app.modules.users.models import User
+from app.shared.enums import UserRole
 from app.modules.visitor_access.schemas import VisitorAccessCreate
 from app.shared.exceptions import not_found
 
@@ -15,7 +15,7 @@ router = APIRouter(prefix="/visitor-access-requests", tags=["visitor access"])
 def post_visitor_access_request(
     payload: VisitorAccessCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: InternalPrincipal = Depends(require_roles(UserRole.ADMIN.value, UserRole.OPS.value)),
 ) -> RequestResponse:
     try:
         request = create_visitor_access_request(db, payload, current_user)

@@ -2,15 +2,14 @@
 
 MVP application for data centre customer onboarding and visitor access tracking.
 
-This initial build contains the Phase 1 backend foundation:
+This build contains the Entra-only onboarding foundation:
 
 - FastAPI application structure
 - PostgreSQL connection configuration
-- SQLAlchemy models for users and roles
+- SQLAlchemy business models for companies, contacts, requests, visitor access, and audit logs
 - Alembic migration setup
-- Local development login with JWT
-- Role-based access dependency foundation
-- Seed script for initial roles and test users
+- Microsoft Entra ID authentication and app-role authorization
+- Audit actor snapshots from validated Entra claims
 
 ## Backend Quick Start
 
@@ -28,12 +27,6 @@ Run migrations:
 
 ```powershell
 alembic upgrade head
-```
-
-Seed local roles and users:
-
-```powershell
-python -m app.scripts.seed_dev_data
 ```
 
 Start the API:
@@ -69,6 +62,33 @@ The frontend calls the backend using:
 ```env
 VITE_API_BASE_URL="http://localhost:8000/api/v1"
 ```
+
+## Local Microsoft Entra Login
+
+The app uses Microsoft Entra ID only. Local username/password login and customer login accounts are not supported.
+
+For localhost testing, the Entra app registration must include this SPA redirect URI:
+
+```text
+http://localhost:5173
+```
+
+Add the Entra values to your real `frontend/.env` file:
+
+```env
+VITE_ENTRA_TENANT_ID="97df7dc2-f178-4ce4-b55e-bcafc144485e"
+VITE_ENTRA_CLIENT_ID="304a3bcf-af30-4104-9ebb-a256a201cb43"
+VITE_ENTRA_REDIRECT_URI="http://localhost:5173"
+```
+
+Add the Entra values to your real `backend/.env` file:
+
+```env
+ENTRA_TENANT_ID="97df7dc2-f178-4ce4-b55e-bcafc144485e"
+ENTRA_CLIENT_ID="304a3bcf-af30-4104-9ebb-a256a201cb43"
+```
+
+The backend maps the signed-in Microsoft account to an existing local `users` record and only allows internal roles: `ADMIN`, `OPS`, or `SECURITY`.
 
 ## Test Users
 

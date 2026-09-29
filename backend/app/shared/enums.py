@@ -5,8 +5,6 @@ class UserRole(StrEnum):
     ADMIN = "ADMIN"
     OPS = "OPS"
     SECURITY = "SECURITY"
-    CUSTOMER_ADMIN = "CUSTOMER_ADMIN"
-    CUSTOMER_USER = "CUSTOMER_USER"
 
 
 class CompanyStatus(StrEnum):

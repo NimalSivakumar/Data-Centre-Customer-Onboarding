@@ -6,13 +6,42 @@ from sqlalchemy import Select, func, select
 from sqlalchemy.orm import Session
 
 from app.modules.audit.models import AuditLog
-from app.modules.users.models import User
+from app.core.dependencies import InternalPrincipal
+
+
+def get_actor_snapshot(actor: object | None) -> dict[str, Any]:
+    if not actor:
+        return {}
+
+    roles = sorted(
+        role.name
+        for role in getattr(actor, "roles", [])
+        if isinstance(getattr(role, "name", None), str)
+    )
+
+    if isinstance(actor, InternalPrincipal):
+        return {
+            "actor_subject": actor.subject,
+            "actor_tenant_id": actor.tenant_id,
+            "actor_email_snapshot": actor.email,
+            "actor_name_snapshot": actor.full_name,
+            "actor_roles_snapshot": roles,
+        }
+
+    actor_id = getattr(actor, "id", None)
+    return {
+        "actor_subject": f"legacy-user:{actor_id}" if actor_id else None,
+        "actor_tenant_id": None,
+        "actor_email_snapshot": getattr(actor, "email", None),
+        "actor_name_snapshot": getattr(actor, "full_name", None),
+        "actor_roles_snapshot": roles or None,
+    }
 
 
 def record_audit_log(
     db: Session,
     *,
-    actor: User | None,
+    actor: object | None,
     action: str,
     entity_type: str,
     entity_id: UUID | None,
@@ -20,7 +49,7 @@ def record_audit_log(
     metadata: dict[str, Any] | None = None,
 ) -> AuditLog:
     log = AuditLog(
-        actor_user_id=actor.id if actor else None,
+        **get_actor_snapshot(actor),
         action=action,
         entity_type=entity_type,
         entity_id=entity_id,
@@ -36,7 +65,8 @@ def list_audit_logs(
     *,
     entity_type: str | None = None,
     entity_id: UUID | None = None,
-    actor_user_id: UUID | None = None,
+    actor_subject: str | None = None,
+    actor_tenant_id: str | None = None,
     action: str | None = None,
     from_date: datetime | None = None,
     to_date: datetime | None = None,
@@ -51,8 +81,10 @@ def list_audit_logs(
         filters.append(AuditLog.entity_type == entity_type)
     if entity_id:
         filters.append(AuditLog.entity_id == entity_id)
-    if actor_user_id:
-        filters.append(AuditLog.actor_user_id == actor_user_id)
+    if actor_subject:
+        filters.append(AuditLog.actor_subject == actor_subject)
+    if actor_tenant_id:
+        filters.append(AuditLog.actor_tenant_id == actor_tenant_id)
     if action:
         filters.append(AuditLog.action == action)
     if from_date:

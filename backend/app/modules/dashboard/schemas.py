@@ -13,9 +13,3 @@ class SecuritySummaryResponse(BaseModel):
     currently_checked_in: int
     upcoming_visits: int
     recently_checked_out: int
-
-
-class CustomerSummaryResponse(BaseModel):
-    my_submitted_requests: int
-    approved_upcoming_visits: int
-    rejected_requests: int

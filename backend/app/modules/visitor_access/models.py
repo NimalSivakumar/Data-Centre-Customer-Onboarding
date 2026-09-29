@@ -31,9 +31,7 @@ class VisitorAccessRequest(Base):
     special_instructions: Mapped[str | None] = mapped_column(Text, nullable=True)
     visit_status: Mapped[str] = mapped_column(String(50), default=VisitStatus.PENDING_ARRIVAL.value)
     checked_in_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    checked_in_by_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"), nullable=True)
     checked_out_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    checked_out_by_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"), nullable=True)
     security_notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(

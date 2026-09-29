@@ -9,7 +9,7 @@ from app.modules.audit import models as audit_models  # noqa: F401
 from app.modules.companies import models as company_models  # noqa: F401
 from app.modules.contacts import models as contact_models  # noqa: F401
 from app.modules.requests import models as request_models  # noqa: F401
-from app.modules.users import models  # noqa: F401
+from app.modules.session_events import models as session_event_models  # noqa: F401
 from app.modules.visitor_access import models as visitor_access_models  # noqa: F401
 
 config = context.config
