@@ -38,6 +38,7 @@ jobs:
   backend:
     name: Backend
     runs-on: ubuntu-latest
+    environment: staging
 
     defaults:
       run:
@@ -65,4 +66,9 @@ jobs:
           SECRET_KEY: "ci-only-secret"
           CORS_ORIGINS: "http://localhost:5173"
           AUTH_MODE: local
+          ENTRA_TENANT_ID: ${{ secrets.ENTRA_TENANT_ID }}
+          ENTRA_CLIENT_ID: ${{ secrets.ENTRA_CLIENT_ID }}
+          ENTRA_AUDIENCE: ${{ secrets.ENTRA_AUDIENCE }}
+          ENTRA_REQUIRED_SCOPE: ${{ secrets.ENTRA_REQUIRED_SCOPE }}
+          ENTRA_TOKEN_VERSION: ${{ secrets.ENTRA_TOKEN_VERSION }}
         run: python -c "from app.main import app; print(app.title)"
