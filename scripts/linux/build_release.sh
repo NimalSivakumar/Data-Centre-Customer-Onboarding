@@ -14,6 +14,10 @@ pushd frontend >/dev/null
 npm ci
 VITE_BASE_PATH="${VITE_BASE_PATH:-/dc-onboarding/}" \
 VITE_API_BASE_URL="${VITE_API_BASE_URL:-/dc-onboarding-api/v1}" \
+VITE_ENTRA_TENANT_ID="${VITE_ENTRA_TENANT_ID:-}" \
+VITE_ENTRA_CLIENT_ID="${VITE_ENTRA_CLIENT_ID:-}" \
+VITE_ENTRA_REDIRECT_URI="${VITE_ENTRA_REDIRECT_URI:-}" \
+VITE_ENTRA_API_SCOPE="${VITE_ENTRA_API_SCOPE:-}" \
 npm run build
 popd >/dev/null
 
