@@ -8,7 +8,6 @@ class Settings(BaseSettings):
     app_env: str = "development"
     database_url: str
     cors_origins: str = "http://localhost:5173,http://localhost:3000"
-    auth_mode: str = "local"
     entra_tenant_id: str
     entra_client_id: str
     entra_audience: str | None = None

@@ -36,10 +36,11 @@ Backend `.env` for Docker local development:
 APP_NAME="DC Onboarding MVP"
 APP_ENV="development"
 DATABASE_URL="postgresql+psycopg://dc_user:dconboarding@postgres:5432/dc_onboarding"
-SECRET_KEY="local-docker-development-secret-change-for-production"
-ACCESS_TOKEN_EXPIRE_MINUTES=480
 CORS_ORIGINS="http://localhost:5173,http://127.0.0.1:5173"
-AUTH_MODE="local"
+ENTRA_TENANT_ID="your-tenant-id"
+ENTRA_CLIENT_ID="your-client-id"
+ENTRA_AUDIENCE="api://your-client-id"
+ENTRA_REQUIRED_SCOPE="access_as_user"
 ```
 
 Frontend `.env` for Docker local development:
