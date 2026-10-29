@@ -10,7 +10,8 @@ from app.modules.security_portal.service import (
     check_in_visitor,
     check_out_visitor,
     deny_visitor_entry,
-    get_security_visitor,
+    get_visible_security_visitor,
+    get_security_visitor_for_update,
     list_security_visitors,
     to_security_visitor_response,
 )
@@ -43,7 +44,7 @@ def get_visitor_detail(
     db: Session = Depends(get_db),
     _: InternalPrincipal = Depends(require_roles(UserRole.SECURITY.value, UserRole.ADMIN.value, UserRole.OPS.value)),
 ) -> SecurityVisitorResponse:
-    visitor = get_security_visitor(db, visitor_access_id)
+    visitor = get_visible_security_visitor(db, visitor_access_id)
     if not visitor:
         raise not_found("Visitor access record not found")
     return to_security_visitor_response(visitor)
@@ -56,7 +57,7 @@ def post_check_in(
     db: Session = Depends(get_db),
     current_user: InternalPrincipal = Depends(require_roles(UserRole.SECURITY.value)),
 ) -> SecurityVisitorResponse:
-    visitor = get_security_visitor(db, visitor_access_id)
+    visitor = get_security_visitor_for_update(db, visitor_access_id)
     if not visitor:
         raise not_found("Visitor access record not found")
     try:
@@ -72,7 +73,7 @@ def post_check_out(
     db: Session = Depends(get_db),
     current_user: InternalPrincipal = Depends(require_roles(UserRole.SECURITY.value)),
 ) -> SecurityVisitorResponse:
-    visitor = get_security_visitor(db, visitor_access_id)
+    visitor = get_security_visitor_for_update(db, visitor_access_id)
     if not visitor:
         raise not_found("Visitor access record not found")
     try:
@@ -88,7 +89,7 @@ def post_deny_entry(
     db: Session = Depends(get_db),
     current_user: InternalPrincipal = Depends(require_roles(UserRole.SECURITY.value)),
 ) -> SecurityVisitorResponse:
-    visitor = get_security_visitor(db, visitor_access_id)
+    visitor = get_security_visitor_for_update(db, visitor_access_id)
     if not visitor:
         raise not_found("Visitor access record not found")
     try:

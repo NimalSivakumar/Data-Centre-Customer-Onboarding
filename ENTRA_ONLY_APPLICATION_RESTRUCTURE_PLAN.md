@@ -46,7 +46,7 @@ This is a migration of authentication, authorization, frontend navigation, backe
 
 1. `ADMIN` and `OPS` can create visitor requests for a selected company.
 2. `ADMIN` and `OPS` select an active company contact as the host/contact for a visitor request.
-3. `ADMIN` and `OPS` can view, approve, reject, and cancel requests according to existing request-state rules.
+3. Only `ADMIN` can approve requests. `ADMIN` and `OPS` can view, reject, and cancel requests according to existing request-state rules (owner decision, 2026-10-29). ADMIN self-approval is not blocked by this role restriction.
 4. `SECURITY` can access the security visitor workflow and perform check-in, check-out, and deny-entry actions.
 5. `ADMIN` and `OPS` may retain read-only access to security visitor lists/details, matching the current behavior, but only `SECURITY` can perform security actions.
 6. Every state-changing operation must record the Entra actor in immutable audit data.
@@ -66,7 +66,8 @@ This is a migration of authentication, authorization, frontend navigation, backe
 | Modify company contacts | Yes | Yes | No |
 | Create visitor requests | Yes | Yes | No |
 | View operational requests | Yes | Yes | No |
-| Approve/reject/cancel requests | Yes | Yes | No |
+| Approve requests | Yes | No | No |
+| Reject/cancel requests | Yes | Yes | No |
 | View security visitor list/details | Yes | Yes | Yes |
 | Check in/check out/deny entry | No | No | Yes |
 | View audit logs | Yes | Yes | No |
@@ -436,7 +437,7 @@ Remove:
 
 `ADMIN` and `OPS` can view operational requests and apply existing request filters.
 
-`ADMIN` and `OPS` can approve, reject, or cancel according to the existing state-transition rules. Each action must store reviewer/actor snapshots and an audit event.
+Only `ADMIN` can approve requests. `ADMIN` and `OPS` can reject or cancel according to the existing state-transition rules. Each action must store reviewer/actor snapshots and an audit event. This is a role restriction, not a requirement for a different person to approve.
 
 ### 10.3 Historical customer-created requests
 
@@ -457,6 +458,16 @@ Historical legacy identities cannot authenticate.
 - Only `SECURITY` can check in, check out, or deny entry.
 - Security actions must store the current Entra principal snapshot.
 - No security action may require a database `User` instance or `users.id`.
+
+Owner-approved field policy (2026-10-29): Security portal list/detail/action responses expose visitor name, full NIN, request number, visitor status, expected arrival/departure, customer company, equipment carried, and actual check-in/check-out times. Only visitor record ID and visit date are retained as additional operational metadata. Do not return phone, email, address, employer, vehicle registration, host, site, visit purpose, special instructions, or security notes through these endpoints. This policy applies to the shared Security portal response, not ADMIN/OPS operational-request APIs. Security notes may still be submitted for actions and stored/audited. Read auditing remains a separate decision.
+
+Correctness follow-up (2026-10-29): Security detail reads enforce the same approved/historical-expired visibility rule as the list. Frontend visit-window/date checks use Indian/Mahe explicitly. Request review/cancellation, Security mutations, and automatic expiry use parent-request-first locking and refreshed state before transitions. Session tracking writes also follow the explicit internal-role and same-transaction audit rules, including heartbeat/system timeout records; this is not an inactivity logout policy.
+
+Configuration/audit follow-up (2026-10-29): Backend `SITE_TIMEZONE` and `SITE_LOCATION` are the single source for site values (existing defaults retained). Authenticated `/auth/site-settings` returns only these two fields; frontend date/window checks and timestamp display follow the configured timezone, and the request form displays the configured location. Server-side creation ignores location overrides, preserving the single-site policy. REQUEST_SUBMITTED audit metadata now snapshots all visitor names/count, not just the first; old logs are not rewritten, and legacy multi-visitor entries disclose incomplete name snapshots. Other full visitor data remains in operational records.
+
+Owner-approved inactivity policy (2026-10-29; supersedes prior tracking-only timeout): warn after 13 minutes and end the application session after 15 minutes without user input. Pointer/mouse, keyboard, touch and scrolling count; heartbeats, API polling, visibility changes and synthetic events do not. Protected business APIs require an active application session ID bound to the authenticated stable Entra subject, in addition to role/token validation. Only explicit activity reports renew the idle clock; ended/expired sessions cannot be revived. Raw Entra authentication is reserved for identity/configuration/session bootstrap; lifecycle routes enforce their own session ownership/state. The frontend locks immediately on expiry and attempts MSAL logout; it does not silently replace expired sessions from cached Microsoft authentication. Entra credential/SSO policy and global token revocation remain Microsoft's responsibility. Sessions are per tab. Migration 202610290023 adds stable subject and UTC activity fields; legacy records cannot authorize access and users must sign in again. Migration was created, not applied; coordinated backend/frontend rollout is required.
+
+Local migration follow-up (2026-10-29): With owner approval, 202610290023 was subsequently applied to the local Docker database. Read-only checks verified the revision and both new columns/indexes. The VM database was not changed, and coordinated VM migration/backend/frontend rollout remains pending. Browser/Entra integration and real idle-flow verification remain pending.
 
 ## 12. Audit Requirements
 

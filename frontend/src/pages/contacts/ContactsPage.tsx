@@ -8,11 +8,9 @@ import { SearchFilterBar } from '../../components/SearchFilterBar'
 import { TableActionButton } from '../../components/TableActionButton'
 import type { AuthState, Company, Contact, ListResponse } from '../../types/api'
 import { cleanFormPayload } from '../../utils/forms'
-import { ContactForm } from './ContactsUsersForms'
+import { ContactForm } from './ContactForm'
 
-type ContactsUsersPageMode = 'contacts'
-
-export function ContactsUsersPage({ auth }: { auth: AuthState; page: ContactsUsersPageMode }) {
+export function ContactsPage({ auth }: { auth: AuthState }) {
   const [searchParams] = useSearchParams()
   const [companies, setCompanies] = useState<Company[]>([])
   const [selected, setSelected] = useState<Company | null>(null)

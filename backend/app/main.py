@@ -8,6 +8,7 @@ from app.modules.companies.router import router as companies_router
 from app.modules.contacts.router import router as contacts_router
 from app.modules.dashboard.router import router as dashboard_router
 from app.modules.requests.router import router as requests_router
+from app.modules.requests.expiry import start_visit_expiry_worker, stop_visit_expiry_worker
 from app.modules.security_portal.router import router as security_portal_router
 from app.modules.session_events.service import start_session_timeout_worker, stop_session_timeout_worker
 from app.modules.visitor_access.router import router as visitor_access_router
@@ -46,8 +47,10 @@ app.include_router(dashboard_router, prefix="/api/v1")
 @app.on_event("startup")
 def start_background_workers() -> None:
     start_session_timeout_worker()
+    start_visit_expiry_worker()
 
 
 @app.on_event("shutdown")
 def stop_background_workers() -> None:
     stop_session_timeout_worker()
+    stop_visit_expiry_worker()

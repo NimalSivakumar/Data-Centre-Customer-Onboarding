@@ -1,10 +1,11 @@
 from datetime import datetime, timezone
 from uuid import UUID
 
-from sqlalchemy import Select, func, or_, select
+from sqlalchemy import Select, func, or_, select, text
 from sqlalchemy.orm import Session, selectinload
 
 from app.core.dependencies import InternalPrincipal
+from app.core.config import settings
 from app.modules.audit.service import record_audit_log
 from app.modules.companies.service import get_company
 from app.modules.contacts.models import Contact
@@ -12,14 +13,13 @@ from app.modules.requests.models import Request
 from app.modules.requests.schemas import ReviewRequest
 from app.modules.visitor_access.models import VisitorAccessRequest
 from app.modules.visitor_access.schemas import VisitorAccessCreate
-from app.shared.enums import RequestStatus, RequestType, VisitStatus
-
-FIXED_SITE_LOCATION = "Cable & Wireless, Victoria"
-
+from app.shared.enums import CompanyStatus, RequestStatus, RequestType, UserRole, VisitStatus
+from app.shared.search import contains_pattern
+from app.shared.time import site_today
 
 def generate_request_number(db: Session) -> str:
-    count = db.scalar(select(func.count()).select_from(Request)) or 0
-    return f"REQ-{datetime.now(timezone.utc):%Y%m%d}-{count + 1:05d}"
+    sequence_value = db.scalar(text("SELECT nextval('request_number_seq')"))
+    return f"REQ-{site_today():%Y%m%d}-{sequence_value:05d}"
 
 
 def get_request(db: Session, request_id: UUID) -> Request | None:
@@ -27,6 +27,17 @@ def get_request(db: Session, request_id: UUID) -> Request | None:
         select(Request)
         .options(selectinload(Request.visitor_accesses))
         .where(Request.id == request_id)
+    )
+
+
+def get_request_for_update(db: Session, request_id: UUID) -> Request | None:
+    # All workflow writers lock the parent before any visitor rows.
+    return db.scalar(
+        select(Request)
+        .options(selectinload(Request.visitor_accesses))
+        .where(Request.id == request_id)
+        .with_for_update()
+        .execution_options(populate_existing=True)
     )
 
 
@@ -44,14 +55,14 @@ def list_requests(
     filters = []
 
     if q:
-        pattern = f"%{q}%"
+        pattern = contains_pattern(q)
         filters.append(
             or_(
-                Request.request_number.ilike(pattern),
-                Request.title.ilike(pattern),
-                VisitorAccessRequest.visitor_full_name.ilike(pattern),
-                VisitorAccessRequest.visitor_id_number.ilike(pattern),
-                VisitorAccessRequest.visitor_phone.ilike(pattern),
+                Request.request_number.ilike(pattern, escape="\\"),
+                Request.title.ilike(pattern, escape="\\"),
+                VisitorAccessRequest.visitor_full_name.ilike(pattern, escape="\\"),
+                VisitorAccessRequest.visitor_id_number.ilike(pattern, escape="\\"),
+                VisitorAccessRequest.visitor_phone.ilike(pattern, escape="\\"),
             )
         )
     if status:
@@ -79,6 +90,10 @@ def create_visitor_access_request(
     company = get_company(db, payload.company_id)
     if not company:
         raise ValueError("Company not found")
+    if company.status != CompanyStatus.ACTIVE.value:
+        raise ValueError("Company must be active to create visitor requests")
+    if payload.visit_date < site_today():
+        raise ValueError("Visit date cannot be in the past")
     roles = {role.name for role in actor.roles}
     if not roles.intersection({"ADMIN", "OPS"}):
         raise PermissionError("Only ADMIN and OPS can create visitor requests")
@@ -115,7 +130,7 @@ def create_visitor_access_request(
             visit_date=payload.visit_date,
             expected_arrival_time=payload.expected_arrival_time,
             expected_departure_time=payload.expected_departure_time,
-            site_location=FIXED_SITE_LOCATION,
+            site_location=settings.site_location,
             host_contact_name=host_contact_name,
             visitor_full_name=visitor.visitor_full_name,
             visitor_id_number=visitor.visitor_id_number,
@@ -136,13 +151,19 @@ def create_visitor_access_request(
         entity_type="request",
         entity_id=request.id,
         summary=f"Visitor access request {request.request_number} submitted for {visitor_count} visitor{'s' if visitor_count != 1 else ''}",
-        metadata={"visitor_count": visitor_count, "first_visitor_full_name": first_visitor.visitor_full_name, "company_id": str(payload.company_id)},
+        metadata={
+            "visitor_count": visitor_count,
+            "visitor_full_names": [visitor.visitor_full_name for visitor in payload.visitors],
+            "company_id": str(payload.company_id),
+        },
     )
     db.commit()
     return get_request(db, request.id) or request
 
 
 def approve_request(db: Session, request: Request, payload: ReviewRequest, actor: InternalPrincipal) -> Request:
+    if UserRole.ADMIN.value not in {role.name for role in actor.roles}:
+        raise PermissionError("Only ADMIN users can approve requests")
     if request.status != RequestStatus.SUBMITTED.value:
         raise ValueError("Only submitted requests can be approved")
     request.status = RequestStatus.APPROVED.value

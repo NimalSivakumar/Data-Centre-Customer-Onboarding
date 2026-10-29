@@ -12,9 +12,10 @@ import { buildSecurityVisitorDetails } from './SecurityVisitorDetails'
 import { SecurityVisitorsTable } from './SecurityVisitorsTable'
 import { mapSecurityVisitorToRow } from './securityMappers'
 import type { SecurityRow } from './securityTypes'
+import { getSiteDate } from './securityTiming'
 
 export function SecurityPage({ auth }: { auth: AuthState }) {
-  const [date, setDate] = useState(new Date().toISOString().slice(0, 10))
+  const [date, setDate] = useState(getSiteDate())
   const [visitors, setVisitors] = useState<SecurityVisitor[]>([])
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(true)
@@ -74,5 +75,5 @@ export function SecurityPage({ auth }: { auth: AuthState }) {
     setDetails(buildSecurityVisitorDetails(row))
   }
   const rows = visitors.map(mapSecurityVisitorToRow)
-  return <Page title="Security portal" error={error}><Panel><div className="table-toolbar"><label>Visit date<input type="date" value={date} onChange={(event) => setDate(event.target.value)} /></label></div><SearchFilterBar search={search} onSearchChange={setSearch} placeholder="Search visitor, ID number, customer, or visitor employer..." resultCount={rows.length} filters={[{ label: 'Visit status', value: statusFilter, onChange: setStatusFilter, options: visitorStatusOptions }]} onClear={() => { setSearch(''); setStatusFilter('') }} />{loading ? <LoadingState label="Loading approved visitors..." /> : <SecurityVisitorsTable rows={rows} onDetails={openDetails} onCheckIn={openCheckIn} onCheckOut={openCheckOut} onDeny={openDeny} />}</Panel><ActionNoteDialog dialog={dialog} onClose={() => setDialog(null)} /><DetailsDialog details={details} onClose={() => setDetails(null)} /></Page>
+  return <Page title="Security portal" error={error}><Panel><div className="table-toolbar"><label>Visit date<input type="date" value={date} onChange={(event) => setDate(event.target.value)} /></label></div><SearchFilterBar search={search} onSearchChange={setSearch} placeholder="Search visitor, NIN, request number, or customer..." resultCount={rows.length} filters={[{ label: 'Visit status', value: statusFilter, onChange: setStatusFilter, options: visitorStatusOptions }]} onClear={() => { setSearch(''); setStatusFilter('') }} />{loading ? <LoadingState label="Loading approved visitors..." /> : <SecurityVisitorsTable rows={rows} onDetails={openDetails} onCheckIn={openCheckIn} onCheckOut={openCheckOut} onDeny={openDeny} />}</Panel><ActionNoteDialog dialog={dialog} onClose={() => setDialog(null)} /><DetailsDialog details={details} onClose={() => setDetails(null)} /></Page>
 }

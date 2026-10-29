@@ -3,35 +3,22 @@ from uuid import UUID
 
 from pydantic import BaseModel
 
-from app.shared.enums import RequestStatus, VisitStatus
+from app.shared.enums import VisitStatus
 
 
 class SecurityVisitorResponse(BaseModel):
     visitor_access_id: UUID
-    request_id: UUID
     request_number: str
-    request_status: RequestStatus
-    request_description: str | None
-    company_id: UUID
     customer_company_name: str | None
     visit_date: date
     expected_arrival_time: time
     expected_departure_time: time
-    site_location: str | None
-    host_contact_name: str | None
     visitor_full_name: str
     visitor_id_number: str
-    visitor_phone: str | None
-    visitor_email: str | None
-    visitor_address: str | None
-    visitor_company: str | None
-    vehicle_registration: str | None
     equipment_carried: str | None
-    special_instructions: str | None
     visit_status: VisitStatus
     checked_in_at: datetime | None
     checked_out_at: datetime | None
-    security_notes: str | None
 
 
 class CheckInRequest(BaseModel):

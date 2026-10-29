@@ -13,6 +13,8 @@ class UserSessionEvent(Base):
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     name: Mapped[str] = mapped_column(String(255))
     email: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
+    actor_subject: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
+    last_activity_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True, index=True)
     login_at: Mapped[datetime] = mapped_column(DateTime(timezone=False), index=True)
     last_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=False), index=True)
     ended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=False), nullable=True, index=True)

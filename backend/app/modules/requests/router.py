@@ -9,6 +9,7 @@ from app.modules.requests.service import (
     approve_request,
     cancel_request,
     get_request,
+    get_request_for_update,
     list_requests,
     reject_request,
 )
@@ -82,13 +83,15 @@ def post_approve_request(
     request_id: UUID,
     payload: ReviewRequest,
     db: Session = Depends(get_db),
-    current_user: InternalPrincipal = Depends(require_roles(UserRole.ADMIN.value, UserRole.OPS.value)),
+    current_user: InternalPrincipal = Depends(require_roles(UserRole.ADMIN.value)),
 ) -> RequestResponse:
-    request = get_request(db, request_id)
+    request = get_request_for_update(db, request_id)
     if not request:
         raise not_found("Request not found")
     try:
         return RequestResponse.model_validate(approve_request(db, request, payload, current_user))
+    except PermissionError as exc:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)) from exc
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
 
@@ -100,7 +103,7 @@ def post_reject_request(
     db: Session = Depends(get_db),
     current_user: InternalPrincipal = Depends(require_roles(UserRole.ADMIN.value, UserRole.OPS.value)),
 ) -> RequestResponse:
-    request = get_request(db, request_id)
+    request = get_request_for_update(db, request_id)
     if not request:
         raise not_found("Request not found")
     try:
@@ -115,7 +118,7 @@ def post_cancel_request(
     db: Session = Depends(get_db),
     current_user: InternalPrincipal = Depends(require_roles(UserRole.ADMIN.value, UserRole.OPS.value)),
 ) -> RequestResponse:
-    request = get_request(db, request_id)
+    request = get_request_for_update(db, request_id)
     if not request:
         raise not_found("Request not found")
     try:

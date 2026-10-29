@@ -13,6 +13,8 @@ from app.modules.requests.models import Request
 from app.modules.security_portal.schemas import CheckInRequest, SecurityActionRequest, SecurityVisitorResponse
 from app.modules.visitor_access.models import VisitorAccessRequest
 from app.shared.enums import RequestStatus, VisitStatus
+from app.shared.search import contains_pattern
+from app.shared.time import site_today
 
 
 def get_site_now() -> datetime:
@@ -41,30 +43,24 @@ def to_security_visitor_response(visitor: VisitorAccessRequest) -> SecurityVisit
     request = visitor.request
     return SecurityVisitorResponse(
         visitor_access_id=visitor.id,
-        request_id=request.id,
         request_number=request.request_number,
-        request_status=RequestStatus(request.status),
-        request_description=request.description,
-        company_id=request.company_id,
         customer_company_name=request.company.name if request.company else None,
         visit_date=visitor.visit_date,
         expected_arrival_time=visitor.expected_arrival_time,
         expected_departure_time=visitor.expected_departure_time,
-        site_location=visitor.site_location,
-        host_contact_name=visitor.host_contact_name,
         visitor_full_name=visitor.visitor_full_name,
         visitor_id_number=visitor.visitor_id_number,
-        visitor_phone=visitor.visitor_phone,
-        visitor_email=visitor.visitor_email,
-        visitor_address=visitor.visitor_address,
-        visitor_company=visitor.visitor_company,
-        vehicle_registration=visitor.vehicle_registration,
         equipment_carried=visitor.equipment_carried,
-        special_instructions=visitor.special_instructions,
         visit_status=VisitStatus(visitor.visit_status),
         checked_in_at=visitor.checked_in_at,
         checked_out_at=visitor.checked_out_at,
-        security_notes=visitor.security_notes,
+    )
+
+
+def security_visibility_filter():
+    return or_(
+        Request.status == RequestStatus.APPROVED.value,
+        (Request.status == RequestStatus.EXPIRED.value) & (VisitorAccessRequest.visit_date < site_today()),
     )
 
 
@@ -73,6 +69,36 @@ def get_security_visitor(db: Session, visitor_access_id: UUID) -> VisitorAccessR
         select(VisitorAccessRequest)
         .options(selectinload(VisitorAccessRequest.request).selectinload(Request.company))
         .where(VisitorAccessRequest.id == visitor_access_id)
+    )
+
+
+def get_visible_security_visitor(db: Session, visitor_access_id: UUID) -> VisitorAccessRequest | None:
+    return db.scalar(
+        select(VisitorAccessRequest)
+        .join(Request, Request.id == VisitorAccessRequest.request_id)
+        .options(selectinload(VisitorAccessRequest.request).selectinload(Request.company))
+        .where(VisitorAccessRequest.id == visitor_access_id)
+        .where(security_visibility_filter())
+    )
+
+
+def get_security_visitor_for_update(db: Session, visitor_access_id: UUID) -> VisitorAccessRequest | None:
+    # Resolve the immutable parent ID without taking a visitor lock first.
+    request_id = db.scalar(select(VisitorAccessRequest.request_id).where(VisitorAccessRequest.id == visitor_access_id))
+    if request_id is None:
+        return None
+    parent = db.scalar(
+        select(Request).where(Request.id == request_id).with_for_update()
+        .execution_options(populate_existing=True)
+    )
+    if parent is None:
+        return None
+    return db.scalar(
+        select(VisitorAccessRequest)
+        .options(selectinload(VisitorAccessRequest.request).selectinload(Request.company))
+        .where(VisitorAccessRequest.id == visitor_access_id)
+        .with_for_update()
+        .execution_options(populate_existing=True)
     )
 
 
@@ -87,7 +113,7 @@ def list_security_visitors(
         .join(Request, Request.id == VisitorAccessRequest.request_id)
         .join(Company, Company.id == Request.company_id)
         .options(selectinload(VisitorAccessRequest.request).selectinload(Request.company))
-        .where(Request.status == RequestStatus.APPROVED.value)
+        .where(security_visibility_filter())
         .where(VisitorAccessRequest.visit_date == visit_date)
     )
 
@@ -95,13 +121,13 @@ def list_security_visitors(
         stmt = stmt.where(VisitorAccessRequest.visit_status == status)
 
     if q:
-        pattern = f"%{q}%"
+        pattern = contains_pattern(q)
         stmt = stmt.where(
             or_(
-                VisitorAccessRequest.visitor_full_name.ilike(pattern),
-                VisitorAccessRequest.visitor_id_number.ilike(pattern),
-                VisitorAccessRequest.visitor_company.ilike(pattern),
-                Company.name.ilike(pattern),
+                VisitorAccessRequest.visitor_full_name.ilike(pattern, escape="\\"),
+                VisitorAccessRequest.visitor_id_number.ilike(pattern, escape="\\"),
+                Request.request_number.ilike(pattern, escape="\\"),
+                Company.name.ilike(pattern, escape="\\"),
             )
         )
 
@@ -177,6 +203,8 @@ def deny_visitor_entry(
     payload: SecurityActionRequest,
     actor: InternalPrincipal,
 ) -> VisitorAccessRequest:
+    if visitor.request.status != RequestStatus.APPROVED.value:
+        raise ValueError("Only approved requests can be denied entry")
     if visitor.visit_status != VisitStatus.PENDING_ARRIVAL.value:
         raise ValueError("Only pending visitors can be denied entry")
     validate_visit_date(visitor)

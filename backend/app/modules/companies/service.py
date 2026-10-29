@@ -1,6 +1,9 @@
+from collections.abc import Iterator
+from contextlib import contextmanager
 from uuid import UUID
 
 from sqlalchemy import Select, func, or_, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.dependencies import InternalPrincipal
@@ -8,6 +11,22 @@ from app.modules.audit.service import record_audit_log
 from app.modules.companies.models import Company
 from app.modules.companies.schemas import CompanyCreate, CompanyUpdate
 from app.modules.contacts.models import Contact
+from app.shared.search import contains_pattern
+
+
+@contextmanager
+def handle_customer_code_conflicts(db: Session) -> Iterator[None]:
+    try:
+        yield
+    except IntegrityError as exc:
+        db.rollback()
+        diagnostic = getattr(exc.orig, "diag", None)
+        if (
+            getattr(exc.orig, "sqlstate", None) == "23505"
+            and getattr(diagnostic, "constraint_name", None) == "companies_customer_code_key"
+        ):
+            raise ValueError("A company with this customer code already exists") from exc
+        raise
 
 
 def get_company(db: Session, company_id: UUID) -> Company | None:
@@ -26,12 +45,12 @@ def list_companies(
     filters = []
 
     if q:
-        pattern = f"%{q}%"
+        pattern = contains_pattern(q)
         filters.append(
             or_(
-                Company.name.ilike(pattern),
-                Company.customer_code.ilike(pattern),
-                Company.main_email.ilike(pattern),
+                Company.name.ilike(pattern, escape="\\"),
+                Company.customer_code.ilike(pattern, escape="\\"),
+                Company.main_email.ilike(pattern, escape="\\"),
             )
         )
     if status:
@@ -50,11 +69,17 @@ def list_companies(
 
 def create_company(db: Session, payload: CompanyCreate, actor: InternalPrincipal) -> Company:
     company_data = payload.model_dump(mode="json")
+    existing = db.scalar(
+        select(Company).where(func.lower(Company.customer_code) == payload.customer_code.lower())
+    )
+    if existing:
+        raise ValueError("A company with this customer code already exists")
     company = Company(
         **company_data,
     )
     db.add(company)
-    db.flush()
+    with handle_customer_code_conflicts(db):
+        db.flush()
 
     main_contact = Contact(
         company_id=company.id,
@@ -88,7 +113,8 @@ def create_company(db: Session, payload: CompanyCreate, actor: InternalPrincipal
         summary=f"Main company contact created for: {company.name}",
         metadata={"company_id": str(company.id), "email": main_contact.email, "source": "company_create"},
     )
-    db.commit()
+    with handle_customer_code_conflicts(db):
+        db.commit()
     db.refresh(company)
     return company
 
@@ -96,6 +122,14 @@ def create_company(db: Session, payload: CompanyCreate, actor: InternalPrincipal
 def update_company(db: Session, company: Company, payload: CompanyUpdate, actor: InternalPrincipal) -> Company:
     changes = payload.model_dump(exclude_unset=True, mode="json")
     changes = {field: value for field, value in changes.items() if getattr(company, field) != value}
+    if changes.get("customer_code"):
+        existing = db.scalar(
+            select(Company)
+            .where(Company.id != company.id)
+            .where(func.lower(Company.customer_code) == changes["customer_code"].lower())
+        )
+        if existing:
+            raise ValueError("A company with this customer code already exists")
     before = {field: getattr(company, field) for field in changes}
     for field, value in changes.items():
         setattr(company, field, value)
@@ -109,6 +143,7 @@ def update_company(db: Session, company: Company, payload: CompanyUpdate, actor:
             summary=f"Company updated: {company.name}",
             metadata={"before": before, "after": changes},
         )
-    db.commit()
+    with handle_customer_code_conflicts(db):
+        db.commit()
     db.refresh(company)
     return company

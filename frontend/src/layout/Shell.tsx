@@ -6,7 +6,7 @@ import { defaultPathForUser } from '../auth/permissions'
 import { getNavItems } from './navigation'
 import { AuditPage } from '../pages/audit/AuditPage'
 import { CompaniesPage } from '../pages/companies/CompaniesPage'
-import { ContactsUsersPage } from '../pages/contacts-users/ContactsUsersPage'
+import { ContactsPage } from '../pages/contacts/ContactsPage'
 import { Dashboard } from '../pages/dashboard/Dashboard'
 import { RequestsPage } from '../pages/requests/RequestsPage'
 import { SecurityPage } from '../pages/security/SecurityPage'
@@ -59,7 +59,7 @@ function NavIcon({ path }: { path: string }) {
 const pageRoutes: { path: string; roles: string[]; element: (auth: AuthState) => ReactNode }[] = [
   { path: '/dashboard', roles: ['ADMIN', 'OPS'], element: (auth) => <Dashboard auth={auth} /> },
   { path: '/companies', roles: ['ADMIN', 'OPS'], element: (auth) => <CompaniesPage auth={auth} /> },
-  { path: '/contacts', roles: ['ADMIN', 'OPS'], element: (auth) => <ContactsUsersPage auth={auth} page="contacts" /> },
+  { path: '/contacts', roles: ['ADMIN', 'OPS'], element: (auth) => <ContactsPage auth={auth} /> },
   { path: '/visitor-request', roles: ['ADMIN', 'OPS'], element: (auth) => <VisitorRequestPage auth={auth} /> },
   { path: '/requests', roles: ['ADMIN', 'OPS'], element: (auth) => <RequestsPage auth={auth} user={auth.user} /> },
   { path: '/security', roles: ['SECURITY'], element: (auth) => <SecurityPage auth={auth} /> },

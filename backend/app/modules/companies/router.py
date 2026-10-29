@@ -84,4 +84,7 @@ def patch_company(
     company = get_company(db, company_id)
     if not company:
         raise not_found("Company not found")
-    return CompanyResponse.model_validate(update_company(db, company, payload, current_user))
+    try:
+        return CompanyResponse.model_validate(update_company(db, company, payload, current_user))
+    except ValueError as exc:
+        raise HTTPException(status_code=http_status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc

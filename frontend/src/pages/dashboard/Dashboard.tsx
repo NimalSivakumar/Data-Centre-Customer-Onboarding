@@ -59,7 +59,7 @@ function getDashboardQuickActions() {
     {
       kicker: 'Approvals',
       title: 'Review requests',
-      description: 'Open submitted visitor requests and approve or reject them with review notes.',
+      description: 'Review submitted visitor requests. Approval is restricted to ADMIN users.',
       to: '/requests',
       tone: 'action-warning',
     },

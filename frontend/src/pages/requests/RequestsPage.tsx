@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react'
 import { api } from '../../api/client'
-import { hasAnyRole } from '../../auth/permissions'
 import { ActionNoteDialog, type ActionNoteDialogState } from '../../components/ActionNoteDialog'
 import { DetailsDialog, type DetailsDialogState } from '../../components/DetailsDialog'
 import { LoadingState } from '../../components/LoadingState'
@@ -11,6 +10,7 @@ import { buildRequestDetails } from './RequestDetails'
 import { RequestsTable } from './RequestsTable'
 import { mapRequestToRow } from './requestMappers'
 import type { RequestRow } from './requestTypes'
+import { getRequestPermissions } from './requestPermissions'
 
 export function RequestsPage({ auth, user }: { auth: AuthState; user: User }) {
   const [requests, setRequests] = useState<AccessRequest[]>([])
@@ -35,6 +35,10 @@ export function RequestsPage({ auth, user }: { auth: AuthState; user: User }) {
   async function openReview(id: string, action: 'approve' | 'reject') {
     const isApproval = action === 'approve'
     if (isApproval) {
+      if (!getRequestPermissions(user).canApprove) {
+        setError('Only ADMIN users can approve requests')
+        return
+      }
       await api<AccessRequest>(`/requests/${id}/approve`, auth, { method: 'POST', body: JSON.stringify({ review_notes: null }) })
       await load()
       return
@@ -54,16 +58,16 @@ export function RequestsPage({ auth, user }: { auth: AuthState; user: User }) {
   function openDetails(row: RequestRow) {
     setDetails(buildRequestDetails(row))
   }
-  const canReview = hasAnyRole(user, ['ADMIN', 'OPS'])
+  const { canApprove, canReject } = getRequestPermissions(user)
   const rows = requests.map(mapRequestToRow)
 
   return (
-    <Page title={canReview ? 'Requests' : 'My Requests'} error={error}>
+    <Page title="Requests" error={error}>
       <Panel>
         {loading ? (
           <LoadingState label="Loading visitor requests..." />
         ) : (
-          <RequestsTable rows={rows} canReview={canReview} search={search} statusFilter={statusFilter} onSearchChange={setSearch} onStatusFilterChange={setStatusFilter} onClearFilters={() => { setSearch(''); setStatusFilter('') }} onDetails={openDetails} onReview={openReview} />
+          <RequestsTable rows={rows} canApprove={canApprove} canReject={canReject} search={search} statusFilter={statusFilter} onSearchChange={setSearch} onStatusFilterChange={setStatusFilter} onClearFilters={() => { setSearch(''); setStatusFilter('') }} onDetails={openDetails} onReview={openReview} />
         )}
       </Panel>
       <ActionNoteDialog dialog={dialog} onClose={() => setDialog(null)} />
