@@ -49,7 +49,7 @@ This is a migration of authentication, authorization, frontend navigation, backe
 3. Only `ADMIN` can approve requests. `ADMIN` and `OPS` can view, reject, and cancel requests according to existing request-state rules (owner decision, 2026-10-29). ADMIN self-approval is not blocked by this role restriction.
 4. `SECURITY` can access the security visitor workflow and perform check-in, check-out, and deny-entry actions.
 5. `ADMIN` and `OPS` may retain read-only access to security visitor lists/details, matching the current behavior, but only `SECURITY` can perform security actions.
-6. Every state-changing operation must record the Entra actor in immutable audit data.
+6. Every business state-changing operation must record the Entra actor in audit data. Owner-approved session exception: session lifecycle/activity/connectivity updates live in `user_session_events` only and must not be duplicated in business audit logs or normal audit exports.
 
 ## 3. Target Role and Permission Matrix
 
@@ -469,9 +469,11 @@ Owner-approved inactivity policy (2026-10-29; supersedes prior tracking-only tim
 
 Local migration follow-up (2026-10-29): With owner approval, 202610290023 was subsequently applied to the local Docker database. Read-only checks verified the revision and both new columns/indexes. The VM database was not changed, and coordinated VM migration/backend/frontend rollout remains pending. Browser/Entra integration and real idle-flow verification remain pending.
 
+Owner clarification (2026-10-29; supersedes earlier same-transaction session-audit notes): Session start/activity/heartbeat/end/timeout updates belong only in `user_session_events`. Stop duplicate SESSION_* audit inserts. The business audit timeline and CSV exports exclude legacy `user_session` audit rows before pagination/counting; preserve existing stored rows rather than deleting history. Business audits and the 15-minute backend-enforced inactivity timeout remain unchanged. No schema migration is needed for this correction.
+
 ## 12. Audit Requirements
 
-The audit log is the authoritative history of state-changing operations.
+The audit log is the authoritative history of business state-changing operations. Session lifecycle/activity/connectivity is kept separately in `user_session_events`, not duplicated in `audit_logs`.
 
 Every audit event must capture, at event time:
 

@@ -37,7 +37,7 @@ test('export retrieves all 235 records with a timestamp/id cursor', async () => 
     assert.equal(params.get('page_size'), '100')
     assert.equal(params.get('from_day'), range.from)
     assert.equal(params.get('to_day'), range.to)
-    assert.equal(params.has('exclude_session_events'), false)
+    assert.equal(params.get('exclude_session_events'), 'true')
     if (count > 0) {
       assert.equal(params.get('before_id'), rows[count * 100 - 1].id)
       assert.equal(params.get('before_created_at'), rows[count * 100 - 1].created_at)
@@ -64,14 +64,33 @@ test('empty exports stop immediately', async () => {
   assert.equal(result.length, 0)
 })
 
-test('full export retains session-only history even when the visible timeline is empty', async () => {
+test('export excludes legacy session-only history using the server-side filter', async () => {
   const session = { ...rows[0], entity_type: 'user_session', action: 'SESSION_HEARTBEAT' }
   const result = await loadAuditExport(async (params) => {
-    assert.equal(params.has('exclude_session_events'), false)
-    return { items: [session], total: 1 }
+    assert.equal(params.get('exclude_session_events'), 'true')
+    const items = params.get('exclude_session_events') === 'true' ? [] : [session]
+    return { items, total: items.length }
   }, range)
-  assert.equal(result.length, 1)
-  assert.equal(result[0].action, 'SESSION_HEARTBEAT')
+  assert.equal(result.length, 0)
+})
+
+test('every export batch excludes sessions but keeps all matching business events', async () => {
+  const history = rows.flatMap((row) => [
+    { ...row, entity_type: 'company', action: 'COMPANY_UPDATED' },
+    { ...row, id: `session-${row.id}`, entity_type: 'user_session', action: 'SESSION_ACTIVITY' },
+  ])
+  let batches = 0
+  const result = await loadAuditExport(async (params) => {
+    batches++
+    assert.equal(params.get('exclude_session_events'), 'true')
+    const business = history.filter((row) => row.entity_type !== 'user_session')
+    const cursor = params.get('before_id')
+    const start = cursor ? business.findIndex((row) => row.id === cursor) + 1 : 0
+    return { items: business.slice(start, start + 100), total: business.length }
+  }, range)
+  assert.equal(batches, 3)
+  assert.equal(result.length, 235)
+  assert.equal(result.some((row) => row.entity_type === 'user_session'), false)
 })
 
 test('failed export batches reject instead of downloading partial history', async () => {
