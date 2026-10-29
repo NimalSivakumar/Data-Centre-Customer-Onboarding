@@ -12,7 +12,6 @@ from app.core.config import settings
 from app.core.dependencies import InternalPrincipal
 from app.db.session import SessionLocal
 from app.modules.session_events.models import UserSessionEvent
-from app.modules.audit.service import record_audit_log
 
 EXPLICIT_LOGOUT_REASON = "USER_SIGNED_OUT"
 INACTIVITY_TIMEOUT_REASON = "SESSION_TIMED_OUT"
@@ -33,14 +32,9 @@ def utc_now() -> datetime:
     return datetime.now(timezone.utc)
 
 
-def mark_session_timed_out(db: Session, session: UserSessionEvent, *, now: datetime) -> None:
+def mark_session_timed_out(session: UserSessionEvent, *, now: datetime) -> None:
     session.ended_at = now.astimezone(ZoneInfo(settings.site_timezone)).replace(tzinfo=None)
     session.reason = INACTIVITY_TIMEOUT_REASON
-    record_audit_log(
-        db, actor=None, action="SESSION_TIMED_OUT", entity_type="user_session",
-        entity_id=session.id, summary="Application session expired after inactivity",
-        metadata={"reason": INACTIVITY_TIMEOUT_REASON},
-    )
 
 
 def expire_inactive_sessions(db: Session, *, now: datetime | None = None) -> int:
@@ -61,7 +55,7 @@ def expire_inactive_sessions(db: Session, *, now: datetime | None = None) -> int
         .execution_options(populate_existing=True)
     ).all()
     for session in sessions:
-        mark_session_timed_out(db, session, now=current_time)
+        mark_session_timed_out(session, now=current_time)
     db.commit()
     return len(sessions)
 
@@ -79,10 +73,6 @@ def start_user_session(db: Session, *, actor: InternalPrincipal) -> UserSessionE
     )
     db.add(session)
     db.flush()
-    record_audit_log(
-        db, actor=actor, action="SESSION_STARTED", entity_type="user_session",
-        entity_id=session.id, summary="Session tracking record started",
-    )
     db.commit()
     db.refresh(session)
     return session
@@ -105,7 +95,7 @@ def require_active_session(db: Session, *, actor: InternalPrincipal, session_id:
         raise PermissionError("Application session expired; sign in again")
     now = utc_now()
     if now >= session.last_activity_at + SESSION_TIMEOUT:
-        mark_session_timed_out(db, session, now=now)
+        mark_session_timed_out(session, now=now)
         db.commit()
         raise PermissionError("Application session expired; sign in again")
     return session
@@ -115,10 +105,6 @@ def record_user_activity(db: Session, *, actor: InternalPrincipal, session_id: U
     session = require_active_session(db, actor=actor, session_id=session_id)
     session.last_activity_at = utc_now()
     session.last_seen_at = local_now()
-    record_audit_log(
-        db, actor=actor, action="SESSION_ACTIVITY", entity_type="user_session",
-        entity_id=session.id, summary="Application session user activity recorded",
-    )
     db.commit()
     db.refresh(session)
     return session
@@ -136,10 +122,6 @@ def heartbeat_user_session(
         return None
     # A heartbeat records connectivity, never user activity.
     session.last_seen_at = local_now()
-    record_audit_log(
-        db, actor=actor, action="SESSION_HEARTBEAT", entity_type="user_session",
-        entity_id=session.id, summary="Session tracking heartbeat recorded",
-    )
     db.commit()
     db.refresh(session)
     return session
@@ -161,11 +143,6 @@ def end_user_session(
         session.last_seen_at = current_time
         session.ended_at = current_time
         session.reason = end_reason
-        record_audit_log(
-            db, actor=actor, action="SESSION_ENDED", entity_type="user_session",
-            entity_id=session.id, summary="Session tracking record ended",
-            metadata={"reason": end_reason},
-        )
         db.commit()
         db.refresh(session)
     return session

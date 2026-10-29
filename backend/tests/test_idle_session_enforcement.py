@@ -45,26 +45,26 @@ class IdleSessionEnforcementTests(TestCase):
             get_current_principal(actor=self.actor, session_id=None, db=self.db)
         self.assertEqual(caught.exception.status_code, 401)
 
-    def test_exact_15_minute_boundary_expires_audits_and_denies_access(self):
+    def test_exact_15_minute_boundary_expires_session_and_denies_access(self):
         self.session.last_activity_at = self.now - timedelta(minutes=15)
         with self.assertRaises(HTTPException) as caught:
             get_current_principal(actor=self.actor, session_id=self.session.id, db=self.db)
         self.assertEqual(caught.exception.status_code, 401)
         self.assertEqual(self.session.reason, "SESSION_TIMED_OUT")
         self.assertIsNotNone(self.session.ended_at)
-        self.assertEqual(self.db.add.call_args.args[0].action, "SESSION_TIMED_OUT")
+        self.db.add.assert_not_called()
         self.db.commit.assert_called_once()
 
     def test_heartbeat_never_advances_activity(self):
         before = self.session.last_activity_at
         service.heartbeat_user_session(self.db, actor=self.actor, session_id=self.session.id)
         self.assertEqual(self.session.last_activity_at, before)
-        self.assertEqual(self.db.add.call_args.args[0].action, "SESSION_HEARTBEAT")
+        self.db.add.assert_not_called()
 
-    def test_real_activity_advances_activity_and_is_audited_before_commit(self):
+    def test_real_activity_advances_activity_without_duplicate_audit(self):
         service.record_user_activity(self.db, actor=self.actor, session_id=self.session.id)
         self.assertEqual(self.session.last_activity_at, self.now)
-        self.assertEqual(self.db.add.call_args.args[0].action, "SESSION_ACTIVITY")
+        self.db.add.assert_not_called()
         self.db.commit.assert_called_once()
 
     def test_activity_cannot_revive_expired_session(self):
@@ -72,7 +72,7 @@ class IdleSessionEnforcementTests(TestCase):
         with self.assertRaises(PermissionError):
             service.record_user_activity(self.db, actor=self.actor, session_id=self.session.id)
         self.assertEqual(self.session.last_activity_at, self.now - timedelta(minutes=15))
-        self.assertEqual(self.db.add.call_args.args[0].action, "SESSION_TIMED_OUT")
+        self.db.add.assert_not_called()
 
     def test_legacy_or_ended_sessions_are_denied_without_repeated_audit(self):
         for session in (None, SimpleNamespace(ended_at=self.now), SimpleNamespace(ended_at=None, last_activity_at=None)):
@@ -129,8 +129,8 @@ class IdleSessionEnforcementTests(TestCase):
                 routes.post_session_activity(uuid4(), db=self.db, current_user=self.actor)
         self.assertEqual(caught.exception.status_code, 401)
 
-    def test_activity_audit_failure_prevents_commit(self):
-        with patch.object(service, "record_audit_log", side_effect=RuntimeError("Audit unavailable")):
-            with self.assertRaises(RuntimeError):
-                service.record_user_activity(self.db, actor=self.actor, session_id=self.session.id)
-        self.db.commit.assert_not_called()
+    def test_session_commit_failure_propagates(self):
+        self.db.commit.side_effect = RuntimeError("Session write unavailable")
+        with self.assertRaises(RuntimeError):
+            service.record_user_activity(self.db, actor=self.actor, session_id=self.session.id)
+        self.db.add.assert_not_called()

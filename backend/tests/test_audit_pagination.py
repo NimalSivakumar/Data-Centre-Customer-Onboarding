@@ -97,14 +97,20 @@ class AuditPaginationTests(TestCase):
             self.assertIn("audit_logs.entity_type !=", str(query))
             self.assertIn("user_session", query.params.values())
 
-    def test_default_queries_keep_session_events_for_full_exports(self):
+    def test_default_queries_exclude_session_events_for_timeline_and_exports(self):
         list_audit_logs(self.db)
         for query in self.queries():
-            self.assertNotIn("audit_logs.entity_type !=", str(query))
-            self.assertNotIn("user_session", query.params.values())
+            self.assertIn("audit_logs.entity_type !=", str(query))
+            self.assertIn("user_session", query.params.values())
 
     def test_route_passes_session_exclusion_to_service(self):
         with patch("app.modules.audit.router.list_audit_logs", return_value=([], 0)) as load:
-            response = get_audit_logs(db=self.db, _=object(), page=1, page_size=50, exclude_session_events=True)
+            response = get_audit_logs(db=self.db, _=object(), page=1, page_size=50)
         self.assertTrue(load.call_args.kwargs["exclude_session_events"])
         self.assertEqual(response["total"], 0)
+
+    def test_session_filter_is_preserved_during_cursor_export(self):
+        list_audit_logs(self.db, before_created_at=datetime(2026, 10, 29, tzinfo=timezone.utc), before_id=uuid4())
+        for query in self.queries():
+            self.assertIn("audit_logs.entity_type !=", str(query))
+            self.assertIn("user_session", query.params.values())

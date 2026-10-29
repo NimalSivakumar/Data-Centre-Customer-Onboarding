@@ -78,7 +78,7 @@ def list_audit_logs(
     to_day: date | None = None,
     before_created_at: datetime | None = None,
     before_id: UUID | None = None,
-    exclude_session_events: bool = False,
+    exclude_session_events: bool = True,
 ) -> tuple[list[AuditLog], int]:
     if from_day and to_day and from_day > to_day:
         raise ValueError("From date must be on or before the to date")

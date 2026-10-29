@@ -10,9 +10,10 @@ from sqlalchemy.dialects import postgresql
 from app.core.dependencies import InternalPrincipal, PrincipalRole
 from app.modules.auth.router import router
 from app.modules.session_events import service
+from app.modules.session_events.models import UserSessionEvent
 
 
-class SessionAuditingTests(TestCase):
+class SessionTrackingTests(TestCase):
     def setUp(self):
         self.db = MagicMock()
         self.now = datetime(2026, 10, 29, 12)
@@ -41,37 +42,35 @@ class SessionAuditingTests(TestCase):
                 check(current_user=SimpleNamespace(roles=set()))
             self.assertEqual(caught.exception.status_code, 403)
 
-    def test_start_adds_actor_audit_before_commit(self):
-        events = []
-        self.db.commit.side_effect = lambda: events.append("commit")
-        self.db.add.side_effect = lambda item: events.append(getattr(item, "action", "session"))
+    def test_start_only_creates_session_tracking_record(self):
         with patch.object(service, "expire_inactive_sessions"), patch.object(service, "local_now", return_value=self.now):
-            service.start_user_session(self.db, actor=self.actor)
-        self.assertLess(events.index("SESSION_STARTED"), events.index("commit"))
-        log = self.db.add.call_args.args[0]
-        self.assertEqual(log.actor_subject, self.actor.subject)
+            result = service.start_user_session(self.db, actor=self.actor)
+        self.db.add.assert_called_once_with(result)
+        self.assertIsInstance(result, UserSessionEvent)
+        self.assertEqual(result.actor_subject, self.actor.subject)
+        self.db.commit.assert_called_once()
         self.db.flush.assert_called_once()
 
-    def test_heartbeat_adds_audit_and_commits_with_write(self):
+    def test_heartbeat_only_updates_tracking_without_audit(self):
         with patch.object(service, "expire_inactive_sessions"), patch.object(
             service, "get_actor_session", return_value=self.session,
         ), patch.object(service, "local_now", return_value=self.now):
             service.heartbeat_user_session(self.db, actor=self.actor, session_id=self.session.id)
         self.assertEqual(self.session.last_seen_at, self.now)
-        self.assertEqual(self.db.add.call_args.args[0].action, "SESSION_HEARTBEAT")
+        self.db.add.assert_not_called()
         self.db.commit.assert_called_once()
 
-    def test_end_adds_audit_and_is_idempotent(self):
+    def test_end_only_updates_tracking_and_is_idempotent(self):
         with patch.object(service, "expire_inactive_sessions"), patch.object(
             service, "get_actor_session", return_value=self.session,
         ), patch.object(service, "local_now", return_value=self.now):
             service.end_user_session(self.db, actor=self.actor, session_id=self.session.id)
             service.end_user_session(self.db, actor=self.actor, session_id=self.session.id)
         self.assertEqual(self.session.reason, "USER_SIGNED_OUT")
-        self.assertEqual(self.db.add.call_args.args[0].action, "SESSION_ENDED")
+        self.db.add.assert_not_called()
         self.db.commit.assert_called_once()
 
-    def test_timeout_locks_stale_sessions_and_audits_each_in_same_transaction(self):
+    def test_timeout_locks_and_updates_stale_sessions_without_audit(self):
         self.db.scalars.return_value.all.return_value = [self.session]
         self.assertEqual(service.expire_inactive_sessions(self.db, now=self.now), 1)
         statement = self.db.scalars.call_args.args[0]
@@ -81,10 +80,7 @@ class SessionAuditingTests(TestCase):
         self.assertIn("last_seen_at <", sql)
         self.assertEqual(self.session.ended_at, self.now)
         self.assertEqual(self.session.reason, "SESSION_TIMED_OUT")
-        log = self.db.add.call_args.args[0]
-        self.assertEqual(log.action, "SESSION_TIMED_OUT")
-        self.assertIsNone(log.actor_subject)
-        self.assertEqual(log.entity_id, self.session.id)
+        self.db.add.assert_not_called()
         self.db.commit.assert_called_once()
 
     def test_actor_session_lookup_locks_and_refreshes_state(self):
@@ -93,13 +89,15 @@ class SessionAuditingTests(TestCase):
         self.assertIn("FOR UPDATE", str(statement.compile(dialect=postgresql.dialect())))
         self.assertTrue(statement.get_execution_options()["populate_existing"])
 
-    def test_audit_failure_prevents_committing_session_write(self):
+    def test_activity_only_updates_session_tracking_fields(self):
         with patch.object(service, "expire_inactive_sessions"), patch.object(
             service, "get_actor_session", return_value=self.session,
-        ), patch.object(service, "record_audit_log", side_effect=RuntimeError("Audit unavailable")):
-            with self.assertRaises(RuntimeError):
-                service.heartbeat_user_session(self.db, actor=self.actor, session_id=self.session.id)
-        self.db.commit.assert_not_called()
+        ), patch.object(service, "local_now", return_value=self.now):
+            service.record_user_activity(self.db, actor=self.actor, session_id=self.session.id)
+        self.assertEqual(self.session.last_activity_at, self.now.replace(tzinfo=timezone.utc))
+        self.assertEqual(self.session.last_seen_at, self.now)
+        self.db.add.assert_not_called()
+        self.db.commit.assert_called_once()
 
     def test_expired_or_missing_session_heartbeat_does_not_write(self):
         for session in (None, SimpleNamespace(ended_at=self.now)):

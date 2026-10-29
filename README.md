@@ -24,7 +24,7 @@ This also processes existing historical records on the first run. It runs only w
 
 ## Audit history
 
-Audit logs support Previous/Next pagination and server-side date filtering in the configured site timezone. **Export all matching logs** fetches every matching stored record in batches, not just the displayed page. The timeline groups related activity; exports retain all stored events. Export runs with the existing ADMIN/OPS permissions and does not modify audit data. Newer records arriving after the first export batch may require a fresh export; the export is not a transaction-wide database snapshot. Very large exports are assembled in browser memory, so selecting a narrower date range is recommended.
+Audit logs support Previous/Next pagination and server-side date filtering in the configured site timezone. **Export all matching logs** fetches every matching business audit record in batches, not just the displayed page. The timeline groups related business activity; exports retain all matching business events, including events grouped out of the timeline. Session tracking is excluded from both views and exports. Export runs with ADMIN/OPS permissions and does not modify audit data. Newer records arriving after the first export batch may require a fresh export; the export is not a transaction-wide database snapshot. Very large exports are assembled in browser memory, so selecting a narrower date range is recommended.
 
 ## Backend Quick Start
 
@@ -112,9 +112,9 @@ The Security portal displays visitor name, full NIN, request number, visitor sta
 
 Security list and detail reads share the same visibility rule: approved requests and historical expired visits. Security button date/window checks use Indian/Mahe explicitly, regardless of the browser timezone. Review/cancellation and Security actions lock the parent request before visitor records; live PostgreSQL concurrency verification remains pending.
 
-Session start, activity, heartbeat, explicit end, and inactivity timeout create audit records alongside their writes. Session records remain excluded from the visible audit timeline but are retained in full exports. Inactivity expiry is now an application access control, as described below; audit retention remains a separate policy decision.
+Session start, activity, heartbeat, explicit end, and inactivity timeout are recorded only in the dedicated `user_session_events` table. They do not create duplicate `audit_logs` entries. Business changes (companies, contacts, requests, and visitor transitions) remain audited. Inactivity expiry remains an application access control, as described below; audit retention remains a separate policy decision.
 
-Session tracking records are excluded from the visible audit timeline and its pagination totals. Full exports still include all matching stored records, including session events; existing records are not deleted. The API supports `exclude_session_events=true` for timeline queries without changing the default full-history behavior.
+Session tracking records are excluded server-side from the audit timeline, pagination totals, and every CSV export batch. Existing historical session audit rows are not deleted. The API defaults to `exclude_session_events=true`; explicit false remains available only for deliberate historical diagnostics by authorized callers. No new migration or database cleanup is required for this separation.
 
 New request-submission audit entries include all visitor names and the visitor count. Older entries with only one recorded name remain historical: single-visitor entries use the label `Visitor`; multi-visitor entries disclose missing audit names rather than inventing them. Full request/visitor records remain unchanged.
 

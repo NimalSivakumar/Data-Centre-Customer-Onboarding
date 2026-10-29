@@ -12,7 +12,7 @@ GET /health
 Purpose: Check whether the backend is running.
 
 Authentication
-Session mutation routes require Admin/Ops/Security and audit start, activity, heartbeat, and end in the same transaction. Inactivity timeouts also write system audit entries. The app session expires after 15 minutes of inactivity; this does not globally revoke Entra access tokens.
+Session mutation routes require Admin/Ops/Security and update only user_session_events for start, activity, heartbeat, end and inactivity timeout. They do not duplicate events in audit_logs. The app session expires after 15 minutes of inactivity; this does not globally revoke Entra access tokens.
 GET /api/v1/auth/me
 Purpose: Get the current Microsoft Entra-authenticated user details.
 
@@ -100,7 +100,7 @@ Audit Logs
 GET /api/v1/audit-logs
 Purpose: View audit logs with filters and pagination. Admin/Ops only.
 Pagination: page (default 1), page_size (default 50, maximum 100).
-Timeline filter: exclude_session_events=true excludes user_session records from both items and total. Default false preserves full history; exports omit this filter and retain session events.
+Session filter: exclude_session_events defaults to true and excludes legacy user_session records from items and total. Both timeline and every export batch explicitly use true. Explicit false is reserved for authorized historical diagnostics; normal audit views/exports do not include sessions. Existing stored rows are not deleted.
 Date filters: from_day and to_day as YYYY-MM-DD, inclusive calendar dates in the configured site timezone.
 Existing from_date and to_date timestamp filters remain supported.
 Export traversal: before_created_at (timestamp with timezone offset) and before_id (UUID), supplied together with page=1.

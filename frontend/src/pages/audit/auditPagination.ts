@@ -4,12 +4,12 @@ import type { AuditDateRange } from './auditFilters'
 export const AUDIT_PAGE_SIZE = 50
 const EXPORT_PAGE_SIZE = 100
 
-export function buildAuditParams(range: AuditDateRange, page = 1, pageSize = AUDIT_PAGE_SIZE, excludeSessionEvents = true) {
+export function buildAuditParams(range: AuditDateRange, page = 1, pageSize = AUDIT_PAGE_SIZE) {
   if (range.from && range.to && range.from > range.to) {
     throw new Error('From date must be on or before the to date')
   }
   const params = new URLSearchParams({ page: String(page), page_size: String(pageSize) })
-  if (excludeSessionEvents) params.set('exclude_session_events', 'true')
+  params.set('exclude_session_events', 'true')
   if (range.from) params.set('from_day', range.from)
   if (range.to) params.set('to_day', range.to)
   return params
@@ -23,7 +23,7 @@ export async function loadAuditExport(
   const seen = new Set<string>()
   let cursor: AuditLog | undefined
   while (true) {
-    const params = buildAuditParams(range, 1, EXPORT_PAGE_SIZE, false)
+    const params = buildAuditParams(range, 1, EXPORT_PAGE_SIZE)
     if (cursor) {
       params.set('before_created_at', cursor.created_at)
       params.set('before_id', cursor.id)
