@@ -73,4 +73,7 @@ def patch_contact(
     contact = get_contact(db, contact_id)
     if not contact:
         raise not_found("Contact not found")
-    return contact_response(update_contact(db, contact, payload, current_user))
+    try:
+        return contact_response(update_contact(db, contact, payload, current_user))
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc

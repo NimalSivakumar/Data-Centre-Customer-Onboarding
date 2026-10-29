@@ -1,5 +1,8 @@
+import { getSiteSettings } from '../api/siteSettings'
+
 export function formatDateTime(value: string) {
   return new Intl.DateTimeFormat(undefined, {
+    timeZone: getSiteSettings().site_timezone,
     year: 'numeric',
     month: 'short',
     day: '2-digit',

@@ -7,3 +7,8 @@ class UserResponse(BaseModel):
     email: EmailStr | None
     full_name: str
     roles: list[str]
+
+
+class SiteSettingsResponse(BaseModel):
+    site_timezone: str
+    site_location: str

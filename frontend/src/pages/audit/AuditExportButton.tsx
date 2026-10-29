@@ -1,12 +1,9 @@
-import type { AuditLog } from '../../types/api'
-import type { AuditDateRange } from './auditFilters'
-import { exportAuditLogs } from './auditExport'
-
 type AuditExportButtonProps = {
-  logs: AuditLog[]
-  dateRange: AuditDateRange
+  onExport: () => Promise<void>
+  exporting: boolean
+  disabled: boolean
 }
 
-export function AuditExportButton({ logs, dateRange }: AuditExportButtonProps) {
-  return <button type="button" onClick={() => exportAuditLogs(logs, dateRange)} disabled={logs.length === 0}>Export log</button>
+export function AuditExportButton({ onExport, exporting, disabled }: AuditExportButtonProps) {
+  return <button type="button" onClick={() => void onExport()} disabled={disabled || exporting}>{exporting ? 'Preparing export...' : 'Export all matching logs'}</button>
 }

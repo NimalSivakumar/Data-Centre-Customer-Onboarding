@@ -3,8 +3,9 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 import logging
 from typing import Literal
+from uuid import UUID
 
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, Header, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
 
@@ -42,7 +43,7 @@ def get_db() -> Generator[Session, None, None]:
         db.close()
 
 
-def get_current_principal(
+def get_entra_principal(
     credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
 ) -> InternalPrincipal:
     if not credentials:
@@ -79,11 +80,30 @@ def get_current_principal(
     )
 
 
+def get_current_principal(
+    actor: InternalPrincipal = Depends(get_entra_principal),
+    session_id: UUID | None = Header(default=None, alias="X-App-Session-ID"),
+    db: Session = Depends(get_db),
+) -> InternalPrincipal:
+    # Imported at call time to keep the principal/audit/session modules acyclic.
+    from app.modules.session_events.service import require_active_session
+
+    if session_id is None:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Application session required")
+    try:
+        require_active_session(db, actor=actor, session_id=session_id)
+    except PermissionError as exc:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=str(exc)) from exc
+    return actor
+
+
 get_current_user = get_current_principal
 
 
-def require_roles(*required_roles: str):
-    def dependency(current_user: InternalPrincipal = Depends(get_current_principal)) -> InternalPrincipal:
+def require_roles(*required_roles: str, require_session: bool = True):
+    principal_dependency = get_current_principal if require_session else get_entra_principal
+
+    def dependency(current_user: InternalPrincipal = Depends(principal_dependency)) -> InternalPrincipal:
         user_roles = {role.name for role in current_user.roles}
         if not user_roles.intersection(required_roles):
             raise HTTPException(

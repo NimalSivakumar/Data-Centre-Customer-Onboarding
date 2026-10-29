@@ -3,22 +3,35 @@ Data Centre Customer Onboarding - Backend API Endpoints
 Base URL:
 http://127.0.0.1:8000
 
+Protected business endpoints require Authorization: Bearer <Entra token> plus X-App-Session-ID: <active application session UUID>.
+The backend binds the session to the token's stable subject and rejects it at 15 minutes without user activity, independently of Entra token expiry. Identity/site-settings/session bootstrap endpoints are Entra-only; session lifecycle endpoints validate ownership/state.
+Feature migration: 202610290023 must be applied before deploying the matching backend/frontend. Existing legacy sessions require sign-in again.
+
 Health
 GET /health
 Purpose: Check whether the backend is running.
 
 Authentication
-POST /api/v1/auth/login
-Purpose: Login using email/password and receive an access token.
-
-POST /api/v1/auth/token
-Purpose: OAuth2-compatible login token endpoint.
-
+Session mutation routes require Admin/Ops/Security and audit start, activity, heartbeat, and end in the same transaction. Inactivity timeouts also write system audit entries. The app session expires after 15 minutes of inactivity; this does not globally revoke Entra access tokens.
 GET /api/v1/auth/me
-Purpose: Get the currently logged-in user details.
+Purpose: Get the current Microsoft Entra-authenticated user details.
 
-POST /api/v1/auth/change-password
-Purpose: Change the current user's password.
+GET /api/v1/auth/site-settings
+Purpose: Return configured site_timezone and site_location to authenticated internal users. No secrets or other application settings are returned. Frontend loads these before protected pages render.
+
+POST /api/v1/auth/sessions
+Purpose: Start a user session tracking record.
+Response: session_id, idle_remaining_seconds, idle_timeout_seconds (900), idle_warning_seconds (120). Binds session to stable Entra subject; initial activity is server UTC time.
+
+POST /api/v1/auth/sessions/{session_id}/heartbeat
+Purpose: Record connectivity and validate that the session remains active. Does not update last_activity_at or extend idle lifetime. Returns the same JSON session-status fields as session creation (no longer HTTP 204). Expired/unavailable sessions return 401.
+
+POST /api/v1/auth/sessions/{session_id}/activity
+Purpose: Report actual user input activity and update server-side last_activity_at on an active owned session. Cannot revive ended/expired/legacy sessions; returns 401 in those cases. Returns JSON session status. Background polling must not call this route.
+
+POST /api/v1/auth/sessions/{session_id}/end
+Purpose: End a user session tracking record.
+Optional body: reason = USER_SIGNED_OUT (default) or SESSION_TIMED_OUT. Remains idempotent for an already-ended owned record.
 
 Companies
 GET /api/v1/companies
@@ -33,12 +46,6 @@ Purpose: Get one company by ID.
 PATCH /api/v1/companies/{company_id}
 Purpose: Update company details. Admin/Ops only.
 
-GET /api/v1/companies/{company_id}/users
-Purpose: List users assigned to a company. Admin/Ops only.
-
-POST /api/v1/companies/{company_id}/users
-Purpose: Assign or create a company user. Admin/Ops only.
-
 Contacts
 GET /api/v1/companies/{company_id}/contacts
 Purpose: List contacts for a company.
@@ -51,7 +58,8 @@ Purpose: Update a contact. Admin/Ops only.
 
 Visitor Access Requests
 POST /api/v1/visitor-access-requests
-Purpose: Create a visitor access request.
+Purpose: Create a visitor access request. Admin/Ops only.
+Submission audits capture every visitor name plus the actual count. Request location comes from the configured SITE_LOCATION; client location overrides are ignored.
 
 Requests
 GET /api/v1/requests
@@ -61,15 +69,18 @@ GET /api/v1/requests/{request_id}
 Purpose: Get one request by ID.
 
 POST /api/v1/requests/{request_id}/approve
-Purpose: Approve a request. Admin/Ops only.
+Purpose: Approve a request. Admin only.
 
 POST /api/v1/requests/{request_id}/reject
 Purpose: Reject a request. Admin/Ops only.
 
 POST /api/v1/requests/{request_id}/cancel
-Purpose: Cancel a request.
+Purpose: Cancel a request. Admin/Ops only.
 
 Security Portal
+Response fields: visitor name, full NIN, request number, visitor status, expected arrival/departure, customer company, equipment carried, actual check-in/check-out timestamps, plus visitor_access_id and visit_date for operations.
+Other personal/contact details and security notes are not returned by these endpoints. Notes may still be submitted for security actions.
+List and detail reads only expose approved requests or historical expired visits. Hidden or missing detail records return 404.
 GET /api/v1/security/visitors
 Purpose: List visitors for a date, status, or search query. Security/Admin/Ops only.
 
@@ -85,19 +96,15 @@ Purpose: Check out a visitor. Security only.
 POST /api/v1/security/visitors/{visitor_access_id}/deny-entry
 Purpose: Deny visitor entry. Security only.
 
-Users
-GET /api/v1/users/internal
-Purpose: List internal staff users. Admin only.
-
-POST /api/v1/users/internal
-Purpose: Create an internal staff user. Admin only.
-
-PATCH /api/v1/users/internal/{user_id}
-Purpose: Update an internal staff user. Admin only.
-
 Audit Logs
 GET /api/v1/audit-logs
 Purpose: View audit logs with filters and pagination. Admin/Ops only.
+Pagination: page (default 1), page_size (default 50, maximum 100).
+Timeline filter: exclude_session_events=true excludes user_session records from both items and total. Default false preserves full history; exports omit this filter and retain session events.
+Date filters: from_day and to_day as YYYY-MM-DD, inclusive calendar dates in the configured site timezone.
+Existing from_date and to_date timestamp filters remain supported.
+Export traversal: before_created_at (timestamp with timezone offset) and before_id (UUID), supplied together with page=1.
+Results are ordered by created_at descending, then id descending. Cursor traversal avoids offset shifts from newer audit inserts.
 
 Dashboard
 GET /api/v1/dashboard/admin-summary
@@ -105,9 +112,6 @@ Purpose: Admin/Ops dashboard summary.
 
 GET /api/v1/dashboard/security-summary
 Purpose: Security/Admin/Ops dashboard summary.
-
-GET /api/v1/dashboard/customer-summary
-Purpose: Customer dashboard summary.
 
 Does data pass through the API before the database?
 Yes. The system data goes through the API first. It does not go directly from the frontend/system to the database.

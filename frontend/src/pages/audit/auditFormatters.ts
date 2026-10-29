@@ -41,7 +41,16 @@ export function formatAuditLines(log: AuditLog) {
   const after = isRecord(metadata.after) ? metadata.after : null
   if (log.action === 'REQUEST_SUBMITTED' && typeof metadata.visitor_count === 'number') {
     const lines = [`Visitors included: ${metadata.visitor_count}`]
-    if (metadata.first_visitor_full_name) lines.push(`First visitor: ${formatValue(metadata.first_visitor_full_name)}`)
+    const names = Array.isArray(metadata.visitor_full_names)
+      ? metadata.visitor_full_names.filter((name): name is string => typeof name === 'string' && name.trim().length > 0)
+      : []
+    if (names.length) {
+      names.forEach((name, index) => lines.push(`${metadata.visitor_count === 1 ? 'Visitor' : `Visitor ${index + 1}`}: ${name}`))
+      if (names.length < metadata.visitor_count) lines.push('Other visitor names were not captured in this audit entry.')
+    } else if (metadata.first_visitor_full_name) {
+      lines.push(`${metadata.visitor_count === 1 ? 'Visitor' : 'Recorded visitor'}: ${formatValue(metadata.first_visitor_full_name)}`)
+      if (metadata.visitor_count > 1) lines.push('Other visitor names were not captured in this legacy audit entry.')
+    }
     return lines
   }
   if (before && after) {

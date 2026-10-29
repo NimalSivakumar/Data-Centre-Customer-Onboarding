@@ -81,7 +81,6 @@ def update_contact(db: Session, contact: Contact, payload: ContactUpdate, actor:
                 "target": {
                     "contact_name": contact.full_name,
                     "contact_email": contact.email,
-                    "account_email": contact.user.email if contact.user else None,
                     "company_id": str(contact.company_id),
                 },
                 "changes": audit_changes,
