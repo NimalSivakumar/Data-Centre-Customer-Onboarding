@@ -15,6 +15,9 @@ class SiteSettingsTests(TestCase):
             entra_tenant_id="test", entra_client_id="test", **values,
         )
 
+    def test_application_default_name_describes_the_operational_application(self):
+        self.assertEqual(Settings.model_fields["app_name"].default, "Data Centre Customer Onboarding")
+
     def test_site_location_and_timezone_can_be_configured(self):
         settings = self.settings(site_location="  Another test site  ", site_timezone="UTC")
         self.assertEqual(settings.site_location, "Another test site")

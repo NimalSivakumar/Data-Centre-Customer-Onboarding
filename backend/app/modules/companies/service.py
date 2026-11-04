@@ -120,6 +120,8 @@ def create_company(db: Session, payload: CompanyCreate, actor: InternalPrincipal
 
 
 def update_company(db: Session, company: Company, payload: CompanyUpdate, actor: InternalPrincipal) -> Company:
+    # Keep last-writer-wins policy, but compute the audit diff from locked current state.
+    db.refresh(company, with_for_update=True)
     changes = payload.model_dump(exclude_unset=True, mode="json")
     changes = {field: value for field, value in changes.items() if getattr(company, field) != value}
     if changes.get("customer_code"):

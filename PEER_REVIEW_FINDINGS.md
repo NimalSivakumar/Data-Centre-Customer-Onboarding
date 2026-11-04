@@ -2,7 +2,11 @@
 
 Original review at commit `b042e7d` (main) was read-only: **no source code was changed during that review**. Later owner-approved fixes are recorded below. Companion to `CODE_REVIEW.md` (system map, diagrams, backlog).
 
-## Current implementation status — 2026-10-29
+## Latest application hardening record — 2026-11-03
+
+See `APPLICATION_CHANGE_PLAN.md` for the current local change list and release gates. Integrated local verification: 150 backend tests and 123 frontend tests pass; frontend lint has zero warnings; TypeScript/Vite build passes. Independent focused review found no confirmed blocker in the inspected changes. Earlier counts, baseline findings and fix orders below are retained historical checkpoints, not the current outstanding-task list. No migration, deployment, commit or push is claimed. Browser/Entra/PostgreSQL/VM acceptance and documented policy/release gates remain open.
+
+## Historical implementation status — 2026-10-29
 
 The original descriptions are retained as historical evidence; they are not all outstanding tasks.
 

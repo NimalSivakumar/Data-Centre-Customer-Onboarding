@@ -7,11 +7,16 @@ import ts from 'typescript'
 const source = readFileSync(new URL('../src/api/client.ts', import.meta.url), 'utf8')
   .replaceAll('import.meta.env.BASE_URL', "'/test-app/'")
 const { outputText } = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS } })
+const deadline = {}
+const deadlineSource = readFileSync(new URL('../src/api/requestDeadline.ts', import.meta.url), 'utf8')
+runInNewContext(ts.transpileModule(deadlineSource, { compilerOptions: { module: ts.ModuleKind.CommonJS } }).outputText,
+  { exports: deadline, AbortController, setTimeout, clearTimeout })
 function fixture(fetch, sessionId = 'test-session') {
   const exports = {}
   let locked = false
   let expired = false
-  runInNewContext(outputText, { exports, fetch, window: { location: { assign: () => {} } }, require: (name) => {
+  runInNewContext(outputText, { exports, fetch, Headers, window: { location: { assign: () => {} } }, require: (name) => {
+    if (name === './requestDeadline') return deadline
     if (name === '../constants/app') return { API_BASE_URL: '/test-api' }
     if (name === '../auth/applicationSession') return {
       getApplicationSessionId: () => sessionId,

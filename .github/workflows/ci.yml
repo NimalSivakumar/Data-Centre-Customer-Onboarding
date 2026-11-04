@@ -72,7 +72,7 @@ jobs:
 
       - name: Import FastAPI app
         env:
-          APP_NAME: "DC Onboarding MVP"
+          APP_NAME: "Data Centre Customer Onboarding"
           APP_ENV: test
           DATABASE_URL: "postgresql+psycopg://ci_user:ci_password@localhost:5432/ci_db"
           SECRET_KEY: "ci-only-secret"

@@ -1,5 +1,5 @@
 from datetime import datetime, timedelta, timezone
-from threading import Event, Thread
+from threading import Event, Lock, Thread
 from uuid import UUID
 from zoneinfo import ZoneInfo
 
@@ -20,7 +20,8 @@ SESSION_WARNING_SECONDS = 120
 TIMEOUT_SWEEP_INTERVAL_SECONDS = 60
 
 _timeout_worker_stop = Event()
-_timeout_worker_started = False
+_timeout_worker: Thread | None = None
+_timeout_worker_lock = Lock()
 logger = logging.getLogger(__name__)
 
 
@@ -149,10 +150,7 @@ def end_user_session(
 
 
 def start_session_timeout_worker() -> None:
-    global _timeout_worker_started
-    if _timeout_worker_started:
-        return
-    _timeout_worker_started = True
+    global _timeout_worker
 
     def run() -> None:
         while not _timeout_worker_stop.wait(TIMEOUT_SWEEP_INTERVAL_SECONDS):
@@ -165,8 +163,25 @@ def start_session_timeout_worker() -> None:
             finally:
                 db.close()
 
-    Thread(target=run, name="session-timeout-worker", daemon=True).start()
+    with _timeout_worker_lock:
+        # Do not clear a stop signal while the previous worker is still exiting.
+        if _timeout_worker is not None and _timeout_worker.is_alive():
+            if _timeout_worker_stop.is_set():
+                raise RuntimeError("Session timeout worker is still stopping; restart the process before retrying startup")
+            return
+        _timeout_worker_stop.clear()
+        worker = Thread(target=run, name="session-timeout-worker", daemon=True)
+        worker.start()
+        _timeout_worker = worker
 
 
 def stop_session_timeout_worker() -> None:
-    _timeout_worker_stop.set()
+    global _timeout_worker
+    with _timeout_worker_lock:
+        _timeout_worker_stop.set()
+        if _timeout_worker is not None:
+            # Bound shutdown if a database call is stuck; retain its handle so a
+            # subsequent start cannot create an overlapping worker.
+            _timeout_worker.join(timeout=5)
+            if not _timeout_worker.is_alive():
+                _timeout_worker = None

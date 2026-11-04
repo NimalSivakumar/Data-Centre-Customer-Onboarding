@@ -13,11 +13,6 @@ from app.shared.time import site_today
 
 logger = logging.getLogger(__name__)
 SWEEP_INTERVAL_SECONDS = 60
-FINAL_VISIT_STATUSES = {
-    VisitStatus.CHECKED_OUT.value,
-    VisitStatus.DENIED_ENTRY.value,
-    VisitStatus.NO_SHOW.value,
-}
 _stop = Event()
 _worker: Thread | None = None
 
@@ -27,7 +22,10 @@ def expire_past_visits(db: Session) -> None:
     requests = db.scalars(
         select(Request)
         .where(Request.status == RequestStatus.APPROVED.value)
-        .where(Request.visitor_accesses.any(VisitorAccessRequest.visit_date < today))
+        .where(Request.visitor_accesses.any(
+            (VisitorAccessRequest.visit_date < today)
+            & (VisitorAccessRequest.visit_status == VisitStatus.PENDING_ARRIVAL.value)
+        ))
         .order_by(Request.id)
         .with_for_update(skip_locked=True)
         .execution_options(populate_existing=True)
@@ -57,23 +55,7 @@ def expire_past_visits(db: Session) -> None:
                         "changes": {"visit_status": {"from": VisitStatus.PENDING_ARRIVAL.value, "to": VisitStatus.NO_SHOW.value}},
                     },
                 )
-        if visitors and all(
-            visitor.visit_date < today and visitor.visit_status in FINAL_VISIT_STATUSES
-            for visitor in visitors
-        ):
-            request.status = RequestStatus.EXPIRED.value
-            record_audit_log(
-                db,
-                actor=None,
-                action="REQUEST_EXPIRED",
-                entity_type="request",
-                entity_id=request.id,
-                summary=f"Request {request.request_number} expired after all visits finished",
-                metadata={
-                    "source": "automatic_visit_expiry",
-                    "changes": {"status": {"from": RequestStatus.APPROVED.value, "to": RequestStatus.EXPIRED.value}},
-                },
-            )
+        # Attendance can lapse; the ADMIN approval/rejection decision is retained.
     db.commit()
 
 

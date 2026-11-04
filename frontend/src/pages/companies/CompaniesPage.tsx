@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { api } from '../../api/client'
@@ -15,54 +15,101 @@ export function CompaniesPage({ auth }: { auth: AuthState }) {
   const [companies, setCompanies] = useState<Company[]>([])
   const [search, setSearch] = useState('')
   const [status, setStatus] = useState('')
+  const [page, setPage] = useState(1)
+  const [total, setTotal] = useState(0)
+  const [loading, setLoading] = useState(false)
+  const loadGeneration = useRef(0)
   const [error, setError] = useState('')
   const [message, setMessage] = useState('')
   const [saving, setSaving] = useState(false)
+  const savingRef = useRef(false)
   const [editingCompany, setEditingCompany] = useState<Company | null>(null)
   const editCompanyRef = useRef<HTMLElement | null>(null)
   const actionMode = searchParams.get('action') === 'list' ? 'list' : 'create'
 
-  async function loadCompanies() {
-    const params = new URLSearchParams()
+  const loadCompanies = useCallback(async () => {
+    const generation = ++loadGeneration.current
+    setLoading(true)
+    setError('')
+    const params = new URLSearchParams({ page: String(page), page_size: '20' })
     if (search.trim()) params.set('q', search.trim())
     if (status) params.set('status', status)
-    const data = await api<ListResponse<Company>>(`/companies${params.size ? `?${params}` : ''}`, auth)
-    setCompanies(data.items)
-  }
+    try {
+      const data = await api<ListResponse<Company>>(`/companies?${params}`, auth)
+      if (generation !== loadGeneration.current) return
+      const lastPage = Math.max(1, Math.ceil(data.total / data.page_size))
+      if (page > lastPage) { setPage(lastPage); return }
+      setCompanies(data.items)
+      setTotal(data.total)
+    } catch (err) {
+      if (generation === loadGeneration.current) {
+        setCompanies([])
+        setError(err instanceof Error ? err.message : 'Could not load companies')
+      }
+      throw err
+    } finally {
+      if (generation === loadGeneration.current) setLoading(false)
+    }
+  }, [auth, search, status, page])
 
-  useEffect(() => { loadCompanies().catch((err: Error) => setError(err.message)) }, [search, status])
+  useEffect(() => {
+    void loadCompanies().catch(() => {})
+    return () => { loadGeneration.current += 1 }
+  }, [loadCompanies])
+
+  function changeFilters(nextSearch: string, nextStatus: string) {
+    if (nextSearch === search && nextStatus === status && page === 1) return
+    loadGeneration.current += 1
+    setSearch(nextSearch)
+    setStatus(nextStatus)
+    setPage(1)
+    setCompanies([])
+    setError('')
+    setMessage('')
+  }
   useEffect(() => { if (editingCompany) editCompanyRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }) }, [editingCompany])
 
   async function createCompany(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
+    if (savingRef.current) return
+    savingRef.current = true
     const formElement = event.currentTarget
     setSaving(true)
     setError('')
+    setMessage('')
     try {
       await api<Company>('/companies', auth, { method: 'POST', body: JSON.stringify(cleanFormPayload(new FormData(formElement))) })
       formElement.reset()
       setMessage('Company created')
-      await loadCompanies()
+      await loadCompanies().catch(() => {
+        setError('Company saved, but the list refresh failed. Refresh the list; do not repeat the save.')
+      })
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not create company')
     } finally {
+      savingRef.current = false
       setSaving(false)
     }
   }
 
   async function updateCompany(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    if (!editingCompany) return
+    if (!editingCompany || savingRef.current) return
+    savingRef.current = true
     setSaving(true)
     setError('')
+    setMessage('')
     try {
       await api<Company>(`/companies/${editingCompany.id}`, auth, { method: 'PATCH', body: JSON.stringify(cleanFormPayload(new FormData(event.currentTarget))) })
       setEditingCompany(null)
       setMessage('Company updated')
-      await loadCompanies()
+      await loadCompanies().catch(() => {
+        setError('Company saved, but the list refresh failed. Refresh the list; do not repeat the save.')
+      })
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not update company')
     } finally {
+      savingRef.current = false
       setSaving(false)
     }
   }
@@ -79,14 +126,33 @@ export function CompaniesPage({ auth }: { auth: AuthState }) {
 
       {actionMode === 'list' && (
         <Panel>
-          <CompaniesTable companies={companies} search={search} status={status} onSearchChange={setSearch} onStatusChange={setStatus} onClearFilters={() => { setSearch(''); setStatus('') }} onEdit={setEditingCompany} />
+          <CompaniesTable
+            companies={companies}
+            search={search}
+            status={status}
+            page={page}
+            pageSize={20}
+            total={total}
+            loading={loading}
+            saving={saving}
+            onPageChange={setPage}
+            onSearchChange={(value) => changeFilters(value, status)}
+            onStatusChange={(value) => changeFilters(search, value)}
+            onClearFilters={() => changeFilters('', '')}
+            onEdit={(company) => {
+              if (savingRef.current) return
+              setError('')
+              setMessage('')
+              setEditingCompany(company)
+            }}
+          />
         </Panel>
       )}
 
       {actionMode === 'list' && editingCompany && (
         <Panel panelRef={editCompanyRef}>
           <h2>Edit company</h2>
-          <CompanyEditForm company={editingCompany} saving={saving} onSubmit={updateCompany} onCancel={() => setEditingCompany(null)} />
+          <CompanyEditForm company={editingCompany} saving={saving} onSubmit={updateCompany} onCancel={() => { if (!savingRef.current) { setEditingCompany(null); setError('') } }} />
         </Panel>
       )}
     </Page>

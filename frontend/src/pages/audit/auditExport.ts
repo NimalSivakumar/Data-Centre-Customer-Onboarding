@@ -36,7 +36,10 @@ function buildAuditCsv(logs: AuditLog[]) {
 }
 
 function escapeCsvValue(value: string) {
-  return `"${value.replaceAll('"', '""')}"`
+  // CSV quotes escape delimiters, not spreadsheet formulas. Preserve stored data;
+  // prefix only the downloaded text cell when a spreadsheet could interpret it.
+  const safeValue = /^\s*[=+@-]/u.test(value) || /^[\t\r\n]/u.test(value) ? `'${value}` : value
+  return `"${safeValue.replaceAll('"', '""')}"`
 }
 
 function downloadTextFile(content: string, fileName: string, type: string) {

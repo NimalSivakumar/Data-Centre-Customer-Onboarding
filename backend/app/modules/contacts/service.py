@@ -51,6 +51,8 @@ def create_contact(db: Session, company_id: UUID, payload: ContactCreate, actor:
 
 
 def update_contact(db: Session, contact: Contact, payload: ContactUpdate, actor: InternalPrincipal) -> Contact:
+    # Keep last-writer-wins policy, but compute the audit diff from locked current state.
+    db.refresh(contact, with_for_update=True)
     changes = payload.model_dump(exclude_unset=True, mode="json")
     changes = {field: value for field, value in changes.items() if getattr(contact, field) != value}
     if changes.get("email"):

@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 from unittest import TestCase
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, call, patch
 from uuid import uuid4
 
 from fastapi import HTTPException
@@ -59,7 +59,9 @@ class ContactUpdateTests(TestCase):
             [call[0] for call in self.db.method_calls].index("add"),
             [call[0] for call in self.db.method_calls].index("commit"),
         )
-        self.db.refresh.assert_called_once_with(self.contact)
+        self.assertEqual(self.db.refresh.call_args_list, [
+            call(self.contact, with_for_update=True), call(self.contact),
+        ])
 
     def test_unchanged_fields_do_not_create_audit(self):
         update_contact(self.db, self.contact, ContactUpdate(phone="1234567"), self.actor)

@@ -33,7 +33,7 @@ POSTGRES_PORT=5433
 Backend `.env` for Docker local development:
 
 ```env
-APP_NAME="DC Onboarding MVP"
+APP_NAME="Data Centre Customer Onboarding"
 APP_ENV="development"
 DATABASE_URL="postgresql+psycopg://dc_user:dconboarding@postgres:5432/dc_onboarding"
 CORS_ORIGINS="http://localhost:5173,http://127.0.0.1:5173"

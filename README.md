@@ -1,8 +1,8 @@
 # Data Centre Customer Onboarding
 
-MVP application for data centre customer onboarding and visitor access tracking.
+Internal staff application for data centre customer onboarding and visitor access tracking.
 
-This build contains the Entra-only onboarding foundation:
+The application provides:
 
 - FastAPI application structure
 - PostgreSQL connection configuration
@@ -10,6 +10,15 @@ This build contains the Entra-only onboarding foundation:
 - Alembic migration setup
 - Microsoft Entra ID authentication and app-role authorization
 - Audit actor snapshots from validated Entra claims
+
+## Operational visitor workflow
+
+1. ADMIN approves the visitor request. OPS can submit/reject/cancel according to the existing permissions, but cannot approve.
+2. SECURITY verifies the visitor identity and uses Check in during the approved site-date/time window. This check-in records the Security acceptance; it is not a separate new approval status.
+3. SECURITY uses Check out when the visitor leaves. The application does not automatically check out a person who may still be inside.
+4. An approved visitor who never arrives becomes NO_SHOW after the scheduled site date passes; an eligible finished request becomes EXPIRED. Midnight is the date boundary, and the worker normally catches it within its 60-second sweep while the backend is running. Visitor/request records and audit history are retained, not deleted.
+
+Local fixes, regression evidence and release gates are tracked in `APPLICATION_CHANGE_PLAN.md`. Local checks do not replace authorized Entra/browser/PostgreSQL/VM acceptance.
 
 ## Automatic visit closure
 

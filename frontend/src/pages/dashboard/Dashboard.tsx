@@ -10,9 +10,18 @@ import type { AuthState } from '../../types/api'
 export function Dashboard({ auth }: { auth: AuthState }) {
   const [summary, setSummary] = useState<Record<string, number> | null>(null)
   const [error, setError] = useState('')
+  const [attempt, setAttempt] = useState(0)
   useEffect(() => {
-    api<Record<string, number>>('/dashboard/admin-summary', auth).then(setSummary).catch((err: Error) => setError(err.message))
-  }, [auth])
+    let active = true
+    setSummary(null)
+    setError('')
+    void api<Record<string, number>>('/dashboard/admin-summary', auth).then((data) => {
+      if (active) setSummary(data)
+    }).catch(() => {
+      if (active) setError('Could not load dashboard summary. Check your connection and retry.')
+    })
+    return () => { active = false }
+  }, [auth, attempt])
 
   const actions = getDashboardQuickActions()
   const [primaryAction, ...secondaryActions] = actions
@@ -49,7 +58,7 @@ export function Dashboard({ auth }: { auth: AuthState }) {
             </div>
           </section>
         </section>
-      ) : <LoadingState label="Loading dashboard summary..." />}
+      ) : error ? <button type="button" onClick={() => setAttempt((value) => value + 1)}>Retry dashboard</button> : <LoadingState label="Loading dashboard summary..." />}
     </Page>
   )
 }

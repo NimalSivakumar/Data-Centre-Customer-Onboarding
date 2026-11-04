@@ -1,7 +1,7 @@
 from datetime import datetime
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from app.modules.visitor_access.schemas import VisitorAccessResponse
 from app.shared.enums import RequestStatus, RequestType
@@ -26,5 +26,12 @@ class RequestResponse(BaseModel):
     updated_at: datetime
     visitor_access: VisitorAccessResponse | None = None
     visitor_accesses: list[VisitorAccessResponse] = Field(default_factory=list)
+
+    @field_validator("status", mode="before")
+    @classmethod
+    def preserve_review_decision(cls, value: RequestStatus | str) -> RequestStatus | str:
+        # Legacy automatic expiry represented an approval whose visit date passed.
+        # Expose its original decision without rewriting historical DB/audit rows.
+        return RequestStatus.APPROVED if value == RequestStatus.EXPIRED else value
 
     model_config = {"from_attributes": True}

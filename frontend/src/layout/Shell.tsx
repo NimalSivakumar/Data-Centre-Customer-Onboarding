@@ -3,6 +3,7 @@ import type { ReactNode } from 'react'
 import { Link, NavLink, Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import { RoleGate } from '../auth/RoleGate'
 import { defaultPathForUser } from '../auth/permissions'
+import { useModalFocus } from '../components/useModalFocus'
 import { getNavItems } from './navigation'
 import { AuditPage } from '../pages/audit/AuditPage'
 import { CompaniesPage } from '../pages/companies/CompaniesPage'
@@ -69,32 +70,38 @@ const pageRoutes: { path: string; roles: string[]; element: (auth: AuthState) =>
 export function Shell({ auth, onLogout }: { auth: AuthState; onLogout: () => void }) {
   const navItems = getNavItems(auth.user)
   const [navOpen, setNavOpen] = useState(false)
+  // Keep this query aligned with App.css's off-canvas breakpoint.
+  const [isNarrow, setIsNarrow] = useState(() => window.matchMedia?.('(max-width: 1100px)').matches ?? false)
   const [openDropdown, setOpenDropdown] = useState<string | null>(null)
   const drawerId = useId()
   const menuButtonRef = useRef<HTMLButtonElement | null>(null)
-  const closeButtonRef = useRef<HTMLButtonElement | null>(null)
+  const drawerRef = useRef<HTMLElement | null>(null)
+  const backdropRef = useRef<HTMLButtonElement | null>(null)
   const location = useLocation()
   const initials = auth.user.full_name.split(' ').map((part) => part[0]).join('').slice(0, 2).toUpperCase()
   const currentNavItem = navItems.find((item) => location.pathname === item.path || dropdownNavItems[item.path]?.links.some((link) => location.pathname === link.to))
+  useModalFocus(isNarrow && navOpen, drawerRef, closeNavigation, backdropRef)
 
   useEffect(() => {
-    if (!navOpen) return
-    const previousOverflow = document.body.style.overflow
-    const menuButton = menuButtonRef.current
-    document.body.style.overflow = 'hidden'
-    closeButtonRef.current?.focus()
-
-    function onKeyDown(event: KeyboardEvent) {
-      if (event.key === 'Escape') closeNavigation()
+    const media = window.matchMedia?.('(max-width: 1100px)')
+    if (!media) return
+    const update = () => {
+      setIsNarrow(media.matches)
+      setNavOpen(false)
+      setOpenDropdown(null)
     }
+    media.addEventListener('change', update)
+    return () => media.removeEventListener('change', update)
+  }, [])
 
-    document.addEventListener('keydown', onKeyDown)
+  useEffect(() => {
+    if (!isNarrow || !navOpen) return
+    const previousOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
     return () => {
       document.body.style.overflow = previousOverflow
-      document.removeEventListener('keydown', onKeyDown)
-      menuButton?.focus()
     }
-  }, [navOpen])
+  }, [isNarrow, navOpen])
 
   function closeNavigation() {
     setNavOpen(false)
@@ -126,9 +133,9 @@ export function Shell({ auth, onLogout }: { auth: AuthState; onLogout: () => voi
 
   return (
     <div className={`shell ${navOpen ? 'nav-open' : ''}`}>
-      {navOpen && <button className="nav-backdrop" type="button" aria-label="Close navigation" onClick={closeNavigation} />}
-      <aside className="sidebar" id={drawerId} aria-label="Primary navigation">
-        <button className="sidebar-close" ref={closeButtonRef} type="button" aria-label="Close navigation" onClick={closeNavigation}>×</button>
+      {isNarrow && navOpen && <button ref={backdropRef} className="nav-backdrop" tabIndex={-1} aria-hidden="true" type="button" aria-label="Close navigation" onClick={closeNavigation} />}
+      <aside ref={drawerRef} tabIndex={-1} className="sidebar" id={drawerId} aria-label="Primary navigation" role={isNarrow && navOpen ? 'dialog' : undefined} aria-modal={isNarrow && navOpen ? true : undefined} hidden={isNarrow && !navOpen} inert={isNarrow && !navOpen} aria-hidden={isNarrow && !navOpen ? true : undefined}>
+        <button className="sidebar-close" hidden={!isNarrow} type="button" aria-label="Close navigation" onClick={closeNavigation}>×</button>
         <div className="brand-block">
           <p className="eyebrow">Data Centre</p>
           <h1>Visitor Access</h1>

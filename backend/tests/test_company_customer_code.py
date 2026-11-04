@@ -74,7 +74,7 @@ class CompanyCustomerCodeTests(TestCase):
         with self.assertRaisesRegex(ValueError, "customer code already exists"):
             update_company(self.db, self.company, CompanyUpdate(customer_code="TEST-001"), self.actor)
         self.db.rollback.assert_called_once()
-        self.db.refresh.assert_not_called()
+        self.db.refresh.assert_called_once_with(self.company, with_for_update=True)
 
     def test_other_constraint_errors_are_not_mislabeled_as_duplicate_codes(self):
         for kwargs in (
