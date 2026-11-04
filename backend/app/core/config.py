@@ -6,7 +6,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    app_name: str = "DC Onboarding MVP"
+    app_name: str = "Data Centre Customer Onboarding"
     app_env: str = "development"
     database_url: str
     cors_origins: str = "http://localhost:5173,http://localhost:3000"

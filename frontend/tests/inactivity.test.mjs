@@ -42,7 +42,7 @@ function fixture(remaining = 900_000) {
       for (const [id, timer] of [...timeouts]) if (timer.at <= now) { timeouts.delete(id); timer.fn() }
       for (const fn of intervals.values()) fn()
     },
-    event(name, isTrusted = true) { listeners.get(name)?.({ isTrusted }) },
+    event(name, isTrusted = true, target = null) { listeners.get(name)?.({ isTrusted, target }) },
   }
 }
 
@@ -100,6 +100,18 @@ test('resuming after browser sleep expires immediately and cannot be revived', (
   f.monitor.stayActive()
   assert.equal(f.expiries, 1)
   assert.equal(f.reports, 0)
+})
+
+test('warning controls cannot renew the timer before their explicit button action', () => {
+  const f = fixture()
+  f.advance(780_000)
+  const warningControl = { closest: (selector) => selector === '[data-idle-controls]' ? {} : null }
+  f.event('pointerdown', true, warningControl)
+  f.event('keydown', true, warningControl)
+  assert.equal(f.reports, 0)
+  assert.equal(f.warnings.at(-1), 120)
+  f.advance(120_000)
+  assert.equal(f.expiries, 1)
 })
 
 test('Stay signed in renews a live session, never an expired one', () => {

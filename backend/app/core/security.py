@@ -1,3 +1,4 @@
+from datetime import datetime, timezone
 from functools import lru_cache
 import json
 import logging
@@ -30,13 +31,21 @@ def decode_entra_token(token: str) -> dict[str, Any]:
         if not key:
             logger.warning("Entra token signing key not found: kid=%s", kid)
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Could not validate credentials")
-        payload = jwt.decode(
-            token,
-            key,
-            algorithms=["RS256"],
-            audience=settings.entra_expected_audience,
-            options={"verify_iss": False},
-        )
+        try:
+            payload = jwt.decode(
+                token,
+                key,
+                algorithms=["RS256"],
+                audience=settings.entra_expected_audience,
+                options={"verify_iss": False, "require_exp": True},
+            )
+            # Entra lifetime claims are integer NumericDates; reject coercible
+            # strings/bools and values that cannot become a principal timestamp.
+            if type(payload["exp"]) is not int:
+                raise JWTError("Expiration Time claim (exp) must be an integer")
+            datetime.fromtimestamp(payload["exp"], tz=timezone.utc)
+        except (TypeError, ValueError, OverflowError, OSError) as exc:
+            raise JWTError("Invalid token lifetime claim") from exc
         issuer = payload.get("iss")
         if issuer not in settings.entra_allowed_issuers:
             logger.warning("Entra token issuer not allowed: iss=%s", issuer)

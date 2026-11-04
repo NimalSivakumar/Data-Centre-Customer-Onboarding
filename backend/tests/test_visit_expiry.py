@@ -35,22 +35,21 @@ class VisitExpiryTests(TestCase):
         db.commit.assert_called_once()
         return request, db, audit
 
-    def test_past_pending_visitor_becomes_no_show_and_request_expires(self):
+    def test_past_pending_visitor_becomes_no_show_and_approval_is_retained(self):
         visitor = self.visitor("PENDING_ARRIVAL")
         request, _, audit = self.run_sweep([visitor])
         self.assertEqual(visitor.visit_status, "NO_SHOW")
-        self.assertEqual(request.status, "EXPIRED")
+        self.assertEqual(request.status, "APPROVED")
         self.assertEqual([call.kwargs["action"] for call in audit.call_args_list], [
-            "VISITOR_NO_SHOW", "REQUEST_EXPIRED",
+            "VISITOR_NO_SHOW",
         ])
         self.assertTrue(all(call.kwargs["actor"] is None for call in audit.call_args_list))
 
-    def test_all_past_final_visitors_expire_request(self):
+    def test_all_past_final_visitors_keep_the_review_decision(self):
         visitors = [self.visitor(status) for status in ("CHECKED_OUT", "DENIED_ENTRY", "NO_SHOW")]
         request, _, audit = self.run_sweep(visitors)
-        self.assertEqual(request.status, "EXPIRED")
-        self.assertEqual(audit.call_args.kwargs["action"], "REQUEST_EXPIRED")
-        audit.assert_called_once()
+        self.assertEqual(request.status, "APPROVED")
+        audit.assert_not_called()
 
     def test_checked_in_visitor_stays_unresolved(self):
         checked_in = self.visitor("CHECKED_IN")

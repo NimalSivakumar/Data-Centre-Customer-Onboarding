@@ -1,6 +1,6 @@
 # Backend
 
-FastAPI backend for the Data Centre Customer Onboarding MVP.
+FastAPI backend for the Data Centre Customer Onboarding application.
 
 ## Setup
 
@@ -15,7 +15,7 @@ Update `.env` with your database password.
 
 ## Database
 
-Run the initial migration:
+Apply the required migrations only with approval for the target database. The command below is a reference, not evidence that any environment has been upgraded:
 
 ```powershell
 alembic upgrade head

@@ -1,12 +1,15 @@
 from datetime import date, datetime, time
 from uuid import UUID
 
-from pydantic import BaseModel, EmailStr, Field, model_validator
+from pydantic import BaseModel, EmailStr, Field, field_validator, model_validator
 
+from app.shared.validation import normalize_business_string
 from app.shared.enums import VisitStatus
 
 
 class VisitorCreate(BaseModel):
+    normalize_strings = field_validator("visitor_full_name", "visitor_id_number", mode="before")(normalize_business_string)
+
     visitor_full_name: str = Field(min_length=1, max_length=255)
     visitor_id_number: str = Field(min_length=1, max_length=100)
     visitor_phone: str | None = Field(default=None, max_length=50)
@@ -19,6 +22,8 @@ class VisitorCreate(BaseModel):
 
 
 class VisitorAccessCreate(BaseModel):
+    normalize_strings = field_validator("visit_reason", "host_contact_name", mode="before")(normalize_business_string)
+
     company_id: UUID
     visit_date: date
     expected_arrival_time: time
@@ -30,6 +35,8 @@ class VisitorAccessCreate(BaseModel):
 
     @model_validator(mode="after")
     def validate_times(self) -> "VisitorAccessCreate":
+        if self.expected_arrival_time.tzinfo is not None or self.expected_departure_time.tzinfo is not None:
+            raise ValueError("Schedule times must be site-local times without timezone offsets")
         if self.expected_departure_time <= self.expected_arrival_time:
             raise ValueError("expected_departure_time must be after expected_arrival_time")
         return self

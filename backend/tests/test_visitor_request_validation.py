@@ -21,7 +21,7 @@ class VisitorRequestValidationTests(TestCase):
         self.today = date(2026, 10, 29)
         self.company = SimpleNamespace(id=uuid4(), status="ACTIVE")
         self.db = MagicMock()
-        self.db.scalar.return_value = 1  # Matching active host contact.
+        self.db.scalars.return_value.all.return_value = ["Test host"]
         self.actor = self.principal("OPS")
         self.data = {
             "company_id": self.company.id,
@@ -126,7 +126,7 @@ class VisitorRequestValidationTests(TestCase):
         self.assertEqual(visitor.site_location, "Configured test site")
 
     def test_non_matching_or_inactive_host_is_rejected(self):
-        self.db.scalar.return_value = 0
+        self.db.scalars.return_value.all.return_value = []
         with self.assertRaisesRegex(ValueError, "must be an active contact"):
             create_visitor_access_request(self.db, self.payload(), self.actor)
         self.assert_no_write()
@@ -188,3 +188,56 @@ class VisitorRequestValidationTests(TestCase):
         with self.assertRaises(HTTPException) as caught:
             role_check(current_user=self.principal("SECURITY"))
         self.assertEqual(caught.exception.status_code, 403)
+
+    def test_single_visitor_title_is_bounded_without_losing_name(self):
+        for length in (236, 237, 255):
+            with self.subTest(length=length):
+                self.db.reset_mock()
+                name = "X" * length
+                request = create_visitor_access_request(self.db, self.payload(visitors=[
+                    {"visitor_full_name": name, "visitor_id_number": "TEST-ID"},
+                ]), self.actor)
+                self.assertEqual(request.title, ("Visitor access for " + name)[:255])
+                added = [call.args[0] for call in self.db.add.call_args_list]
+                visitor = next(row for row in added if isinstance(row, VisitorAccessRequest))
+                self.assertEqual(visitor.visitor_full_name, name)
+                log = next(row for row in added if isinstance(row, AuditLog))
+                self.assertEqual(log.metadata_json["visitor_full_names"], [name])
+
+    def test_offset_schedule_times_are_readably_rejected_before_comparison(self):
+        for arrival, departure in (
+            ("09:00:00+04:00", "17:00:00"),
+            ("09:00:00", "17:00:00+04:00"),
+            ("09:00:00+04:00", "17:00:00+04:00"),
+            ("09:00:00Z", "17:00:00Z"),
+        ):
+            with self.subTest(arrival=arrival, departure=departure):
+                with self.assertRaisesRegex(ValidationError, "site-local times without timezone offsets"):
+                    self.payload(expected_arrival_time=arrival, expected_departure_time=departure)
+        self.assert_no_write()
+
+    def test_host_matching_supports_legacy_whitespace_names_without_writing_contacts(self):
+        self.db.scalar.return_value = 0  # The old exact-count lookup cannot match this row.
+        self.db.scalars.return_value.all.return_value = [" \tTest host\n "]
+        request = create_visitor_access_request(self.db, self.payload(host_contact_name="  Test host  "), self.actor)
+        statement = self.db.scalars.call_args.args[0]
+        from sqlalchemy.dialects import postgresql
+        query = statement.compile(dialect=postgresql.dialect())
+        self.assertIn("contacts.full_name", str(query))
+        self.assertIn("contacts.company_id =", str(query))
+        self.assertIn(self.company.id, query.params.values())
+        self.assertIn("ACTIVE", query.params.values())
+        added = [call.args[0] for call in self.db.add.call_args_list]
+        self.assertFalse(any(type(row).__name__ == "Contact" for row in added))
+        visitor = next(row for row in added if isinstance(row, VisitorAccessRequest))
+        self.assertEqual(visitor.host_contact_name, "Test host")
+        self.assertEqual(request.status, "SUBMITTED")
+
+    def test_host_matching_remains_case_sensitive_and_exact_after_outer_trim(self):
+        self.db.scalar.return_value = 0
+        for names in (["test host"], ["Test  host"], [], ["Someone else"]):
+            with self.subTest(names=names):
+                self.db.scalars.return_value.all.return_value = names
+                with self.assertRaisesRegex(ValueError, "must be an active contact"):
+                    create_visitor_access_request(self.db, self.payload(), self.actor)
+                self.assert_no_write()

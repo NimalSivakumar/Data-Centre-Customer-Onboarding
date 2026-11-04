@@ -66,7 +66,9 @@ def list_requests(
             )
         )
     if status:
-        filters.append(Request.status == status)
+        # Legacy auto-expired requests were approved, not rejected or cancelled.
+        filters.append(Request.status.in_([RequestStatus.APPROVED.value, RequestStatus.EXPIRED.value])
+                       if status == RequestStatus.APPROVED.value else Request.status == status)
     if request_type:
         filters.append(Request.request_type == request_type)
     if company_id:
@@ -100,14 +102,14 @@ def create_visitor_access_request(
     host_contact_name = payload.host_contact_name.strip() if payload.host_contact_name else ""
     if not host_contact_name:
         raise ValueError("Host/contact name is required")
-    host_contact_exists = db.scalar(
-        select(func.count())
-        .select_from(Contact)
+    # Trim in Python to match input normalization (including tabs/Unicode whitespace)
+    # without rewriting historical names or broadening company/status/case matching.
+    active_host_names = db.scalars(
+        select(Contact.full_name)
         .where(Contact.company_id == payload.company_id)
         .where(Contact.status == "ACTIVE")
-        .where(Contact.full_name == host_contact_name)
-    )
-    if not host_contact_exists:
+    ).all()
+    if not any(name.strip() == host_contact_name for name in active_host_names):
         raise ValueError("Host/contact name must be an active contact for the selected company")
 
     first_visitor = payload.visitors[0]
@@ -116,7 +118,7 @@ def create_visitor_access_request(
         request_number=generate_request_number(db),
         company_id=payload.company_id,
         request_type=RequestType.VISITOR_ACCESS.value,
-        title=f"Visitor access for {first_visitor.visitor_full_name}" if visitor_count == 1 else f"Visitor access for {visitor_count} visitors",
+        title=(f"Visitor access for {first_visitor.visitor_full_name}" if visitor_count == 1 else f"Visitor access for {visitor_count} visitors")[:255],
         description=payload.visit_reason,
         status=RequestStatus.SUBMITTED.value,
         submitted_at=datetime.now(timezone.utc),

@@ -26,4 +26,5 @@ export const visitorStatusOptions = [
   { label: 'Checked in', value: 'CHECKED_IN' },
   { label: 'Checked out', value: 'CHECKED_OUT' },
   { label: 'Denied entry', value: 'DENIED_ENTRY' },
+  { label: 'No show', value: 'NO_SHOW' },
 ]

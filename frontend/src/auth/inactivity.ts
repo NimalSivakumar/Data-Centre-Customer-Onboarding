@@ -61,6 +61,10 @@ export function startInactivityMonitor(options: IdleOptions, environment?: IdleE
   }
 
   const activity: EventListener = (event) => {
+    // Warning controls have explicit actions. In capture phase, renewing here
+    // could remove Sign out before its click is delivered.
+    const target = event.target as (EventTarget & { closest?: (selector: string) => Element | null }) | null
+    if (target?.closest?.('[data-idle-controls]')) return
     if (event.isTrusted && env.target.visibilityState === 'visible') stayActive()
   }
   const events = ['pointermove', 'pointerdown', 'keydown', 'touchstart', 'scroll', 'wheel']
