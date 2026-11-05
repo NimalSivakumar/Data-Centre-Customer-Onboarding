@@ -89,7 +89,6 @@ def create_company(db: Session, payload: CompanyCreate, actor: InternalPrincipal
         job_title="Main company contact",
         contact_type="MANAGEMENT",
         is_primary=True,
-        is_authorised_requester=False,
         status="ACTIVE",
     )
     db.add(main_contact)
