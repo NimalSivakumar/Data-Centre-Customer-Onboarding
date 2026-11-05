@@ -23,7 +23,7 @@ class ContactUpdateTests(TestCase):
             id=uuid4(), company_id=uuid4(), full_name="Test contact",
             email="contact@example.com", phone="1234567", job_title="Engineer",
             contact_type="TECHNICAL", is_primary=False,
-            is_authorised_requester=False, status="ACTIVE",
+            status="ACTIVE",
             created_at=now, updated_at=now,
         )
 
@@ -34,6 +34,10 @@ class ContactUpdateTests(TestCase):
             full_name="Test staff", roles=frozenset({PrincipalRole(name=role)}),
             access_token_expires_at=None,
         )
+
+    def test_contact_has_no_authorised_requester_field(self):
+        self.assertNotIn("is_authorised_requester", Contact.__table__.columns)
+        self.assertFalse(hasattr(self.contact, "is_authorised_requester"))
 
     def test_real_edit_without_user_relationship_records_actor_and_changes(self):
         self.assertFalse(hasattr(self.contact, "user"))
